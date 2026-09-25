@@ -16,8 +16,13 @@ Element Web の内部（`MatrixClientPeg` などのシングルトン）をマ�
   - 同梱 Web アプリ + 独自スキーム（Element Desktop の `vector://`）方式にしないのは、MAS（OIDC）の
     ログインでリダイレクト先が https でないと登録が通らないため。
 - 非表示のアカウントも読み込んだまま（`backgroundThrottling: false`）なので、同期と通知は続く。
-- 未読はページタイトル（`<brand> [3]` / `* <brand>`）から拾ってサイドバーと Dock のバッジに出す。
-- 通知をクリックすると Element が `window.focus()` を呼ぶので、preload でそれを拾ってそのアカウントへ切り替える。
+- 中身のクライアントは Element Web に限らない（Cinny Web でも動作確認済み）。未読の拾い方だけクライアントごとに違うので、
+  両方から拾って合成し、サイドバーと Dock のバッジに出す。
+  - Element: ページタイトル（`<brand> [3]` は件数、`* <brand>` は未読のみ）
+  - Cinny: favicon の差し替え（緑のロゴ = メンションあり → `!`、灰のロゴ = 未読あり → 点。件数は出ない）
+  - どちらにも当てはまらないクライアントはバッジが出ないだけで、他は動く。
+- 通知のクリックは preload で `Notification` を包んで拾い、そのアカウントへ切り替える
+  （クリック時の振る舞いがクライアントごとに違うため。Element は `window.focus()`、Cinny は画面内遷移だけ）。
 - `target=_blank` のリンクは既定ブラウザで開く。
 
 ## 使い方
@@ -60,7 +65,7 @@ pnpm run install-app   # electron-builder で dist/ に作り、~/Applications �
 - **パスキー（Touch ID / iCloud キーチェーン）でのログインは使えない。** macOS は Apple が許可した
   ブラウザにしか同期パスキーを渡さない。Google の SSO では「別の方法を試す」からパスワード＋2段階認証で入る。
   UA からは `Electron/` を外してあるので、埋め込みブラウザとして弾かれることは避けている。
-- 未読数はタイトル依存。ブランドや Element の版でタイトル形式が変わると拾えなくなる。
+- 未読はタイトル・favicon の形式に依存する。クライアントの版で形式が変わると拾えなくなる。
 - 自動更新は無い。コードを変えたら `pnpm run install-app` で入れ直す。
 - プロセスを強制終了すると、次の起動で Element が「別のウィンドウで開いています」と出ることがある
   （Element Web のセッションロックが残るため）。他に起動していなければ「続行」してよい。

@@ -69,18 +69,41 @@ function iconDataUrl(account) {
   return nativeImage.createFromPath(p).resize({ width: 96, height: 96, quality: "best" }).toDataURL();
 }
 
-// Element Web のタイトルは "<brand> [3]"（通知数）や "* <brand>"（未読のみ）の形になる
+// 未読の拾い方はクライアントごとに違うので、タイトルと favicon の両方から拾って合成する。
+// どちらの形式にも当てはまらないクライアントは、バッジが出ないだけで他は動く。
+
+// Element Web: タイトルが "<brand> [3]"（通知数）や "* <brand>"（未読のみ）になる
 function parseTitle(title) {
   const m = title.match(/\[(\d+)\]/);
   return { count: m ? Number(m[1]) : 0, unread: !m && /(^|\s)\*(\s|$)/.test(title) };
 }
 
+// Cinny: favicon を data URL の SVG で差し替える。メンションありは緑、未読ありは灰のロゴ
+function parseFavicons(favicons) {
+  const svg = decodeURIComponent(favicons.find((u) => u.startsWith("data:image/svg")) ?? "").toUpperCase();
+  return { mention: svg.includes("#45B83B"), unread: svg.includes("#989898") };
+}
+
+function setSignal(id, key, value) {
+  const b = badges.get(id);
+  b[key] = value;
+  pushBadges();
+}
+
+function mergedBadge({ title, favicon }) {
+  return {
+    count: title.count,
+    mention: favicon.mention,
+    unread: title.unread || favicon.unread || favicon.mention,
+  };
+}
+
 function pushBadges() {
-  const payload = Object.fromEntries(badges);
-  sidebar.webContents.send("badges", payload);
-  const total = [...badges.values()].reduce((s, b) => s + b.count, 0);
-  const anyUnread = [...badges.values()].some((b) => b.unread);
-  app.dock?.setBadge(total > 0 ? String(total) : anyUnread ? "•" : "");
+  const merged = Object.fromEntries([...badges].map(([id, b]) => [id, mergedBadge(b)]));
+  sidebar.webContents.send("badges", merged);
+  const all = Object.values(merged);
+  const total = all.reduce((s, b) => s + b.count, 0);
+  app.dock?.setBadge(total > 0 ? String(total) : all.some((b) => b.mention) ? "!" : all.some((b) => b.unread) ? "•" : "");
 }
 
 function layout() {
@@ -115,10 +138,10 @@ function createAccountView(account) {
   });
 
   wc.on("page-title-updated", (_e, title) => {
-    badges.set(account.id, parseTitle(title));
-    pushBadges();
+    setSignal(account.id, "title", parseTitle(title));
     if (account.id === activeId) win.setTitle(`${account.name} — ${title}`);
   });
+  wc.on("page-favicon-updated", (_e, favicons) => setSignal(account.id, "favicon", parseFavicons(favicons)));
 
   wc.on("context-menu", (_e, params) => buildContextMenu(wc, params).popup({ window: win }));
 
@@ -126,7 +149,7 @@ function createAccountView(account) {
   win.contentView.addChildView(view);
   wc.loadURL(account.url);
   views.set(account.id, view);
-  badges.set(account.id, { count: 0, unread: false });
+  badges.set(account.id, { title: { count: 0, unread: false }, favicon: { mention: false, unread: false } });
   return view;
 }
 
@@ -268,7 +291,7 @@ function createWindow() {
 }
 
 ipcMain.on("activate", (_e, id) => activate(id));
-// 通知クリック時に Element が window.focus() を呼ぶので、そのアカウントへ切り替える
+// 通知がクリックされたら（preload-account.js が知らせてくる）、そのアカウントへ切り替える
 ipcMain.on("focus-me", (e) => {
   for (const [id, v] of views) {
     if (v.webContents === e.sender) {
