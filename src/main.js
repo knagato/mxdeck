@@ -280,6 +280,9 @@ ipcMain.on("focus-me", (e) => {
   }
 });
 
+// Google 等の IdP は UA に "Electron/" があると埋め込みブラウザ扱いでログインを拒むことがあるので外す
+app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|element-multi)\/\S+/g, "");
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
