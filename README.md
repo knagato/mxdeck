@@ -57,6 +57,7 @@ pnpm run install-app   # electron-builder で dist/ に作り、~/Applications �
 - `id` は partition 名になる。**変えると別の保存領域になり、ログインし直し**になる。
 - `icon` が無ければ `name` の1文字目を `color` の丸で出す。
 - ⌘1〜⌘9 でアカウント切り替え、⌘R は表示中のアカウントだけ再読み込み、⌥⌘I で開発者ツール。
+- 「表示 → メモリ使用量…」でアカウントごとのメモリ（working set、iframe の別プロセスも合算）と Electron 本体側の内訳を出す。
 
 ### アプリ上での管理
 

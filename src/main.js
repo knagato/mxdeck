@@ -414,6 +414,8 @@ function buildMenu() {
         { label: "実際のサイズ", accelerator: "CmdOrCtrl+0", click: () => zoom(null) },
         { type: "separator" },
         { role: "togglefullscreen" },
+        { type: "separator" },
+        { label: "メモリ使用量…", click: showMemoryReport },
       ],
     },
     {
@@ -433,6 +435,54 @@ function buildMenu() {
     { role: "windowMenu" },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// ---------------------------------------------------------------------------
+// メモリ使用量
+// アカウント1つが複数のプロセスを使うことがある（ウィジェットなど別オリジンの iframe はサイト分離で別プロセス）。
+// フレームが載っているプロセスをたどってアカウントごとに合算し、残りは Electron 本体側として種類別に出す。
+
+function memoryReport() {
+  const metrics = app.getAppMetrics();
+  const kbOf = new Map(metrics.map((m) => [m.pid, m.memory.workingSetSize])); // macOS では KB 単位
+  const claimed = new Set();
+  const pidsOf = (wc) => {
+    if (!wc || wc.isDestroyed()) return [];
+    const pids = new Set([wc.getOSProcessId()]);
+    for (const f of wc.mainFrame?.framesInSubtree ?? []) if (f.osProcessId) pids.add(f.osProcessId);
+    return [...pids].filter((pid) => !claimed.has(pid));
+  };
+  const sum = (pids) => pids.reduce((s, pid) => s + (kbOf.get(pid) ?? 0), 0);
+  const claim = (name, pids) => {
+    pids.forEach((pid) => claimed.add(pid));
+    return { name, processes: pids.length, kb: sum(pids) };
+  };
+
+  const rows = accounts.map((a) => claim(a.name, pidsOf(views.get(a.id)?.webContents)));
+  rows.push(claim("（サイドバー）", pidsOf(sidebar.webContents)));
+
+  const byType = new Map();
+  for (const m of metrics) {
+    if (claimed.has(m.pid)) continue;
+    const key = m.type === "Utility" && m.serviceName ? `Utility: ${m.serviceName}` : m.type;
+    const t = byType.get(key) ?? { processes: 0, kb: 0 };
+    t.processes += 1;
+    t.kb += m.memory.workingSetSize;
+    byType.set(key, t);
+  }
+  for (const [type, t] of byType) rows.push({ name: `（${type}）`, ...t });
+  return { rows, totalKb: metrics.reduce((s, m) => s + m.memory.workingSetSize, 0), processes: metrics.length };
+}
+
+function showMemoryReport() {
+  const { rows, totalKb, processes } = memoryReport();
+  const mb = (kb) => `${Math.round(kb / 1024)} MB`;
+  const lines = rows.sort((x, y) => y.kb - x.kb).map((r) => `${r.name}: ${mb(r.kb)}（${r.processes} プロセス）`);
+  dialog.showMessageBox(win, {
+    type: "info",
+    message: `メモリ使用量 合計 ${mb(totalKb)}（${processes} プロセス）`,
+    detail: `${lines.join("\n")}\n\n各プロセスの working set（共有メモリを含む）の合計。アクティビティモニタの「メモリ」とは数え方が違う。`,
+  });
 }
 
 function zoom(delta) {
