@@ -44,6 +44,22 @@ let editor; // { win, targetId }（targetId が無ければ新規追加）
 
 const findAccount = (id) => accounts.find((a) => a.id === id);
 
+function originOf(url) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+// IPC は送り元を確かめる。アカウントのビューは外部の Web ページなので、
+// サイドバーや編集シート向けのチャンネルを叩けないようにする（preload で公開していなくても念のため）
+const fromSidebar = (e) => e.sender === sidebar?.webContents;
+const fromEditor = (e) => !!editor && e.sender === editor.win.webContents;
+const onSidebar = (channel, fn) => ipcMain.on(channel, (e, ...args) => fromSidebar(e) && fn(...args));
+const handleEditor = (channel, fn) =>
+  ipcMain.handle(channel, (e, ...args) => (fromEditor(e) ? fn(...args) : { error: "forbidden" }));
+
 function readState() {
   try {
     return JSON.parse(fs.readFileSync(STATE_FILE(), "utf8"));
@@ -129,8 +145,19 @@ function createAccountView(account) {
   const wc = view.webContents;
   const ses = wc.session;
 
-  ses.setPermissionRequestHandler((_wc, permission, callback) => callback(ALLOWED_PERMISSIONS.has(permission)));
-  ses.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
+  // 権限はそのアカウントのサイトを表示している間だけ出す。SSO などで別サイトへ移った画面には出さない。
+  // 判定はトップレベルの URL で行う（通話ウィジェット等の iframe は親ページの許可で動く）。
+  // webContents が無い確認（Service Worker 等）は、要求元のオリジンで判定する。
+  const allowed = (w, permission, requestingOrigin) => {
+    const account = findAccount(id);
+    if (!account || !ALLOWED_PERMISSIONS.has(permission)) return false;
+    const origin = w && !w.isDestroyed() ? originOf(w.getURL()) : originOf(requestingOrigin);
+    return origin !== null && origin === originOf(account.url);
+  };
+  ses.setPermissionRequestHandler((w, permission, callback, details) =>
+    callback(allowed(w, permission, details?.requestingUrl)),
+  );
+  ses.setPermissionCheckHandler((w, permission, requestingOrigin) => allowed(w, permission, requestingOrigin));
 
   // target=_blank のリンクは既定ブラウザへ。ログイン(OIDC)は同じビュー内の遷移なので影響しない
   wc.setWindowOpenHandler(({ url }) => {
@@ -325,7 +352,7 @@ function openEditor(targetId) {
   });
 }
 
-ipcMain.handle("editor:init", () => {
+handleEditor("editor:init", () => {
   const account = editor?.targetId ? findAccount(editor.targetId) : undefined;
   if (!account) return { isNew: true, account: { name: "", url: "", color: "#0dbd8b", icon: null } };
   return {
@@ -334,7 +361,7 @@ ipcMain.handle("editor:init", () => {
   };
 });
 
-ipcMain.handle("editor:choose-icon", async () => {
+handleEditor("editor:choose-icon", async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(editor.win, {
     properties: ["openFile"],
     filters: [{ name: "画像", extensions: ["png", "jpg", "jpeg", "gif", "webp", "icns", "tiff"] }],
@@ -344,7 +371,7 @@ ipcMain.handle("editor:choose-icon", async () => {
   return preview ? { path: filePaths[0], preview } : { error: "この画像は読み込めませんでした" };
 });
 
-ipcMain.handle("editor:save", (_e, data) => {
+handleEditor("editor:save", (data = {}) => {
   const name = String(data.name ?? "").trim();
   if (!name) return { error: "名前を入れてください" };
   let url;
@@ -380,7 +407,7 @@ ipcMain.handle("editor:save", (_e, data) => {
   return { ok: true };
 });
 
-ipcMain.on("editor:cancel", () => editor?.win.close());
+ipcMain.on("editor:cancel", (e) => fromEditor(e) && editor.win.close());
 
 // ---------------------------------------------------------------------------
 // メニュー
@@ -531,10 +558,10 @@ function createWindow() {
   layout();
 }
 
-ipcMain.on("activate", (_e, id) => activate(id));
-ipcMain.on("add-account", () => openEditor());
-ipcMain.on("reorder", (_e, ids) => reorderAccounts(ids));
-ipcMain.on("account-menu", (_e, id) => {
+onSidebar("activate", (id) => activate(id));
+onSidebar("add-account", () => openEditor());
+onSidebar("reorder", (ids) => Array.isArray(ids) && reorderAccounts(ids));
+onSidebar("account-menu", (id) => {
   if (!findAccount(id)) return;
   Menu.buildFromTemplate([
     { label: "編集…", click: () => openEditor(id) },

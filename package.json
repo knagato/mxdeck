@@ -3,12 +3,30 @@
   "productName": "mxdeck",
   "version": "0.1.0",
   "private": true,
-  "description": "複数の Matrix アカウント（Element Web）を1つのウィンドウで切り替えるデスクトップシェル",
+  "description": "A desktop shell that keeps several Matrix accounts (Element Web, Cinny, …) side by side in one window",
+  "keywords": [
+    "matrix",
+    "element",
+    "cinny",
+    "multi-account",
+    "electron"
+  ],
+  "license": "MIT",
+  "author": "Nagato Kasaki (https://github.com/knagato)",
+  "homepage": "https://github.com/knagato/mxdeck#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/knagato/mxdeck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/knagato/mxdeck/issues"
+  },
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --mac dir",
-    "install-app": "pnpm run dist && ditto \"dist/mac-arm64/mxdeck.app\" \"$HOME/Applications/mxdeck.app\""
+    "dist": "electron-builder --mac dir --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false -c.mac.notarize=false",
+    "install-app": "pnpm run dist && ditto \"dist/mac-arm64/mxdeck.app\" \"$HOME/Applications/mxdeck.app\"",
+    "release": "./scripts/release.sh"
   },
   "devDependencies": {
     "electron": "^44.4.5",
@@ -17,6 +35,7 @@
   "build": {
     "appId": "jp.knagato.mxdeck",
     "productName": "mxdeck",
+    "copyright": "Copyright © 2026 Nagato Kasaki",
     "files": [
       "src/**",
       "accounts.example.json",
@@ -25,13 +44,19 @@
     "mac": {
       "category": "public.app-category.social-networking",
       "icon": "build/icon.png",
-      "target": "dir",
-      "identity": "-",
-      "hardenedRuntime": false,
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Matrix の通話でマイクを使います",
-        "NSCameraUsageDescription": "Matrix の通話でカメラを使います"
-      }
+        "NSMicrophoneUsageDescription": "mxdeck uses the microphone for Matrix calls.",
+        "NSCameraUsageDescription": "mxdeck uses the camera for Matrix calls."
+      },
+      "artifactName": "${productName}-${version}-${arch}-mac.${ext}"
     }
   },
   "pnpm": {
