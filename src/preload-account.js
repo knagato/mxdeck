@@ -3,7 +3,7 @@
 // Notification そのものを包んで click を拾う。
 const { contextBridge, ipcRenderer, webFrame } = require("electron");
 
-contextBridge.exposeInMainWorld("__elementMulti", {
+contextBridge.exposeInMainWorld("__mxdeck", {
   focus: () => ipcRenderer.send("focus-me"),
 });
 
@@ -13,7 +13,7 @@ webFrame.executeJavaScript(`(() => {
   class Notification extends Original {
     constructor(...args) {
       super(...args);
-      this.addEventListener("click", () => window.__elementMulti.focus());
+      this.addEventListener("click", () => window.__mxdeck.focus());
     }
   }
   window.Notification = Notification;

@@ -3,8 +3,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const CONFIG_DIR = path.join(os.homedir(), ".config", "element-multi");
-const ACCOUNTS_FILE = process.env.ELEMENT_MULTI_ACCOUNTS || path.join(CONFIG_DIR, "accounts.json");
+const CONFIG_DIR = path.join(os.homedir(), ".config", "mxdeck");
+const ACCOUNTS_FILE = process.env.MXDECK_ACCOUNTS || path.join(CONFIG_DIR, "accounts.json");
 // アプリから選んだアイコンはここへコピーする（元ファイルを動かしても消えないように）
 const ICON_DIR = path.join(CONFIG_DIR, "icons");
 

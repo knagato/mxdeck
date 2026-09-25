@@ -1,4 +1,4 @@
-// element-multi: 複数の Matrix Web クライアントを1ウィンドウで切り替えるシェル。
+// mxdeck: 複数の Matrix Web クライアントを1ウィンドウで切り替えるシェル。
 // アカウントごとに別 partition（Cookie / IndexedDB / Service Worker が独立）の
 // WebContentsView を作り、左端のサイドバーで表示を切り替える。
 // 非表示のビューも生かしたまま（backgroundThrottling: false）なので同期と通知は続く。
@@ -505,13 +505,13 @@ ipcMain.on("focus-me", (e) => {
   }
 });
 
-// 保存先は productName（"Element Multi"）ではなく固定名にする。
-// 開発起動（pnpm start）と .app で同じ partition を共有し、ログインをやり直さずに済むように。
-// ELEMENT_MULTI_USER_DATA は動作確認用（普段使いのログイン状態に触れずに別の保存先で起動する）
-app.setPath("userData", process.env.ELEMENT_MULTI_USER_DATA || path.join(app.getPath("appData"), "element-multi"));
+// 保存先を固定名にする。開発起動（pnpm start）の既定は package.json の name、.app は productName で
+// 変わりうるので、両方で同じ partition を共有してログインをやり直さずに済むように明示する。
+// MXDECK_USER_DATA は動作確認用（普段使いのログイン状態に触れずに別の保存先で起動する）
+app.setPath("userData", process.env.MXDECK_USER_DATA || path.join(app.getPath("appData"), "mxdeck"));
 
 // Google 等の IdP は UA に "Electron/" があると埋め込みブラウザ扱いでログインを拒むことがあるので外す
-app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|element-multi)\/\S+/g, "");
+app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|mxdeck)\/\S+/g, "");
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();

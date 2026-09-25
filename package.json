@@ -1,6 +1,6 @@
 {
-  "name": "element-multi",
-  "productName": "Element Multi",
+  "name": "mxdeck",
+  "productName": "mxdeck",
   "version": "0.1.0",
   "private": true,
   "description": "複数の Matrix アカウント（Element Web）を1つのウィンドウで切り替えるデスクトップシェル",
@@ -8,15 +8,15 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --mac dir",
-    "install-app": "pnpm run dist && ditto \"dist/mac-arm64/Element Multi.app\" \"$HOME/Applications/Element Multi.app\""
+    "install-app": "pnpm run dist && ditto \"dist/mac-arm64/mxdeck.app\" \"$HOME/Applications/mxdeck.app\""
   },
   "devDependencies": {
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3"
   },
   "build": {
-    "appId": "jp.knagato.element-multi",
-    "productName": "Element Multi",
+    "appId": "jp.knagato.mxdeck",
+    "productName": "mxdeck",
     "files": [
       "src/**",
       "accounts.example.json",

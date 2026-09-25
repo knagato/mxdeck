@@ -1,7 +1,7 @@
-# element-multi
+# mxdeck
 
 複数の Matrix アカウントを1つのウィンドウで切り替えるデスクトップシェル（試作）。
-左端のサイドバーでアカウントを選ぶと、そのアカウントの Element Web が右側に出る。
+左端のサイドバーでアカウントを選ぶと、そのアカウントの Matrix Web クライアント（Element Web・Cinny など）が右側に出る。
 
 Element Desktop は 1プロセス1アカウントで、複数使うには `--profile` で別プロセスを立てるしかない。
 Element Web の内部（`MatrixClientPeg` などのシングルトン）をマルチアカウント化するのは重いので、
@@ -33,16 +33,16 @@ node node_modules/electron/install.js   # pnpm が postinstall を飛ばした�
 pnpm start
 ```
 
-.app にして `~/Applications/Element Multi.app` に入れる（ad-hoc 署名、公証なし。自分の Mac 用）:
+.app にして `~/Applications/mxdeck.app` に入れる（ad-hoc 署名、公証なし。自分の Mac 用）:
 
 ```bash
 pnpm run install-app   # electron-builder で dist/ に作り、~/Applications へ ditto
 ```
 
-起動中の .app は先に終了しておく。保存先は開発起動と同じ `~/Library/Application Support/element-multi`
+起動中の .app は先に終了しておく。保存先は開発起動と同じ `~/Library/Application Support/mxdeck`
 に固定してあるので、`pnpm start` と .app でログイン状態を共有する（同時には起動しない）。
 
-アカウントは `~/.config/element-multi/accounts.json`（`ELEMENT_MULTI_ACCOUNTS` で変更可）。
+アカウントは `~/.config/mxdeck/accounts.json`（`MXDECK_ACCOUNTS` で変更可）。
 無ければ `accounts.example.json` をコピーして作る。
 
 ```json
@@ -72,7 +72,7 @@ pnpm run install-app   # electron-builder で dist/ に作り、~/Applications �
 
 - `id` は追加時に名前（日本語ならホスト名）から自動で作り、以後は変えない。
 - 保存データを残して削除したアカウントは、**同じ URL で追加し直すと元の保存領域を引き継ぐ**（ログインし直し不要）。
-- アプリから選んだアイコンは `~/.config/element-multi/icons/` にコピーする。
+- アプリから選んだアイコンは `~/.config/mxdeck/icons/` にコピーする。
 - 読めない `accounts.json` は `accounts.json.broken-<時刻>` に退避してから空で起動する（上書きで消さない）。
 
 ### 動作確認
@@ -80,7 +80,7 @@ pnpm run install-app   # electron-builder で dist/ に作り、~/Applications �
 普段使いのログイン状態に触れずに、別の保存先・別の一覧で起動できる:
 
 ```bash
-ELEMENT_MULTI_USER_DATA=/tmp/emtest/ud ELEMENT_MULTI_ACCOUNTS=/tmp/emtest/accounts.json \
+MXDECK_USER_DATA=/tmp/emtest/ud MXDECK_ACCOUNTS=/tmp/emtest/accounts.json \
   pnpm exec electron . --remote-debugging-port=19222
 ```
 
