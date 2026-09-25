@@ -1,0 +1,103 @@
+:root {
+  color-scheme: light dark;
+  --bg: #e9ecef;
+  --active: #1b1d22;
+  --badge: #e0245e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15191e;
+    --active: #ffffff;
+  }
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+/* 信号機ボタンの下まではウィンドウのドラッグ領域 */
+.drag {
+  height: 44px;
+  -webkit-app-region: drag;
+}
+nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-top: 6px;
+}
+button {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.12s;
+}
+button:hover,
+button.active {
+  opacity: 1;
+}
+/* 選択中は左端にバー */
+button.active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  width: 4px;
+  height: 28px;
+  border-radius: 0 4px 4px 0;
+  background: var(--active);
+}
+button img,
+button .letter {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: block;
+}
+button .letter {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+}
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  border: 2px solid var(--bg);
+  background: var(--badge);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+.badge.dot {
+  min-width: 12px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  top: -3px;
+  right: -3px;
+  background: var(--active);
+}
+.badge[hidden] {
+  display: none;
+}

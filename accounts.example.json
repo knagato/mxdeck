@@ -1,0 +1,16 @@
+{
+  "accounts": [
+    {
+      "id": "work",
+      "name": "Work",
+      "url": "https://element.example.com",
+      "icon": "~/Pictures/work-icon.png",
+      "color": "#0dbd8b"
+    },
+    {
+      "id": "personal",
+      "name": "Personal",
+      "url": "https://app.element.io"
+    }
+  ]
+}
