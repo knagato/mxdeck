@@ -10,6 +10,8 @@
 #     （アプリ用パスワードを聞かれる。https://account.apple.com で発行する）
 #
 # electron-builder は認証情報が無いと警告だけ出して公証を飛ばすので、前後でここが止める。
+# notarytool のキーチェーンプロファイルは、エージェント等の別プロセスから読めないことがある。
+# その場合は自分のターミナルで実行する。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -31,7 +33,14 @@ for app in dist/mac*/mxdeck.app; do
   spctl --assess --type execute --verbose=2 "$app"
   xcrun stapler validate "$app"
 done
+# electron-builder が公証するのは .app だけなので、dmg も署名・公証・staple する
+# （ダウンロードした dmg を開くときの Gatekeeper の確認がオフラインでも通るように）
+identity=$(security find-identity -v -p codesigning | sed -nE 's/.*"(Developer ID Application: [^"]+)".*/\1/p' | head -1)
 for dmg in dist/*.dmg; do
-  xcrun stapler validate "$dmg" || echo "（$dmg は staple されていない。中の .app は公証済みなので起動はできる）"
+  codesign --force --sign "$identity" --timestamp "$dmg"
+  xcrun notarytool submit "$dmg" --keychain-profile "$APPLE_KEYCHAIN_PROFILE" --wait
+  xcrun stapler staple "$dmg"
+  xcrun stapler validate "$dmg"
+  spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
 done
 ls -lh dist/*.dmg dist/*.zip
