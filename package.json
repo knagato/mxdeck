@@ -12,7 +12,7 @@
     "electron"
   ],
   "license": "MIT",
-  "author": "Nagato Kasaki (https://github.com/knagato)",
+  "author": "knagato (https://github.com/knagato)",
   "homepage": "https://github.com/knagato/mxdeck#readme",
   "repository": {
     "type": "git",
@@ -35,7 +35,7 @@
   "build": {
     "appId": "jp.knagato.mxdeck",
     "productName": "mxdeck",
-    "copyright": "Copyright © 2026 Nagato Kasaki",
+    "copyright": "Copyright © 2026 knagato",
     "files": [
       "src/**",
       "accounts.example.json",
