@@ -1,0 +1,135 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f5f6f8;
+  --fg: #1b1d22;
+  --muted: #6b7280;
+  --border: #d0d4da;
+  --field: #ffffff;
+  --primary: #1b1d22;
+  --primary-fg: #ffffff;
+  --error: #d1263b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1f2328;
+    --fg: #eef0f3;
+    --muted: #9aa3ad;
+    --border: #3a4048;
+    --field: #15191e;
+    --primary: #eef0f3;
+    --primary-fg: #15191e;
+  }
+}
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+}
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px 20px;
+}
+h1 {
+  margin: 0;
+  font-size: 16px;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-weight: 600;
+}
+small {
+  font-weight: 400;
+  color: var(--muted);
+}
+input:not([type="color"]) {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--fg);
+  font: inherit;
+}
+input:focus {
+  outline: 2px solid #0dbd8b;
+  outline-offset: -1px;
+}
+.icon-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.preview {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+  font-size: 26px;
+  font-weight: 700;
+}
+.preview img {
+  width: 100%;
+  height: 100%;
+}
+.icon-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.color {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.color input {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+button {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+button.primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-weight: 600;
+}
+.partition {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.error {
+  margin: 0;
+  color: var(--error);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+[hidden] {
+  display: none !important;
+}

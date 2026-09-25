@@ -58,6 +58,34 @@ pnpm run install-app   # electron-builder で dist/ に作り、~/Applications �
 - `icon` が無ければ `name` の1文字目を `color` の丸で出す。
 - ⌘1〜⌘9 でアカウント切り替え、⌘R は表示中のアカウントだけ再読み込み、⌥⌘I で開発者ツール。
 
+### アプリ上での管理
+
+`accounts.json` を手で書かなくても、アプリから追加・編集・削除・並べ替えができる。変更はすぐ `accounts.json` に書き戻る。
+
+| 操作 | やり方 |
+| --- | --- |
+| 追加 | サイドバー下の「+」、または ⇧⌘N。名前・URL・アイコン（画像か色）を入れる |
+| 編集 | アイコンを右クリック →「編集…」。URL を変えるとそのアカウントだけ読み直す |
+| 削除 | アイコンを右クリック →「削除…」。保存データ（ログイン状態・暗号鍵）を消すかを選べる |
+| 並べ替え | アイコンをドラッグ。⌘1〜9 の割り当ても並び順に付け直る |
+| 手で編集した後 | メニュー「アカウント → accounts.json を読み直す」 |
+
+- `id` は追加時に名前（日本語ならホスト名）から自動で作り、以後は変えない。
+- 保存データを残して削除したアカウントは、**同じ URL で追加し直すと元の保存領域を引き継ぐ**（ログインし直し不要）。
+- アプリから選んだアイコンは `~/.config/element-multi/icons/` にコピーする。
+- 読めない `accounts.json` は `accounts.json.broken-<時刻>` に退避してから空で起動する（上書きで消さない）。
+
+### 動作確認
+
+普段使いのログイン状態に触れずに、別の保存先・別の一覧で起動できる:
+
+```bash
+ELEMENT_MULTI_USER_DATA=/tmp/emtest/ud ELEMENT_MULTI_ACCOUNTS=/tmp/emtest/accounts.json \
+  pnpm exec electron . --remote-debugging-port=19222
+```
+
+`--remote-debugging-port` を付けると CDP（`http://127.0.0.1:19222/json`）からサイドバーや編集シートを操作できる。
+
 ## 制限（試作の段階）
 
 - Element Desktop 固有の機能は無い（Seshat による暗号化ルームのローカル検索、トレイ、自動起動、

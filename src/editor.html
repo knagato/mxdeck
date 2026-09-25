@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src data:; style-src 'self' 'unsafe-inline'" />
+    <link rel="stylesheet" href="editor.css" />
+  </head>
+  <body>
+    <form id="form" autocomplete="off">
+      <h1 id="heading">アカウントを追加</h1>
+
+      <div class="icon-row">
+        <div id="preview" class="preview"></div>
+        <div class="icon-buttons">
+          <button type="button" id="choose">画像を選ぶ…</button>
+          <button type="button" id="clear">画像を外す</button>
+          <label class="color">
+            画像が無いときの色
+            <input type="color" id="color" />
+          </label>
+        </div>
+      </div>
+
+      <label>
+        名前
+        <input id="name" required placeholder="例: Work" />
+      </label>
+      <label>
+        Web クライアントの URL
+        <input id="url" required placeholder="例: https://app.element.io" />
+        <small>Element Web・Cinny など、ブラウザで開く Matrix クライアントの URL</small>
+      </label>
+      <p id="partition" class="partition" hidden></p>
+
+      <p id="error" class="error" hidden></p>
+
+      <div class="actions">
+        <button type="button" id="cancel">キャンセル</button>
+        <button type="submit" id="save" class="primary">追加</button>
+      </div>
+    </form>
+    <script src="editor.js"></script>
+  </body>
+</html>

@@ -1,19 +1,30 @@
-// element-multi: 複数の Element Web を1ウィンドウで切り替えるシェル。
+// element-multi: 複数の Matrix Web クライアントを1ウィンドウで切り替えるシェル。
 // アカウントごとに別 partition（Cookie / IndexedDB / Service Worker が独立）の
 // WebContentsView を作り、左端のサイドバーで表示を切り替える。
 // 非表示のビューも生かしたまま（backgroundThrottling: false）なので同期と通知は続く。
 
-const { app, BaseWindow, WebContentsView, Menu, shell, ipcMain, nativeImage } = require("electron");
+const {
+  app,
+  BaseWindow,
+  BrowserWindow,
+  WebContentsView,
+  Menu,
+  shell,
+  ipcMain,
+  nativeImage,
+  dialog,
+  session,
+  clipboard,
+} = require("electron");
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
+const store = require("./accounts");
 
 const SIDEBAR_WIDTH = 72;
-const CONFIG_DIR = path.join(os.homedir(), ".config", "element-multi");
-const ACCOUNTS_FILE = process.env.ELEMENT_MULTI_ACCOUNTS || path.join(CONFIG_DIR, "accounts.json");
 const STATE_FILE = () => path.join(app.getPath("userData"), "state.json");
+const partitionOf = (id) => `persist:acct-${id}`;
 
-// Element Web が要求する権限のうち、許可するもの（通知・通話・画面共有・全画面・クリップボード）
+// Web クライアントが要求する権限のうち、許可するもの（通知・通話・画面共有・全画面・クリップボード）
 const ALLOWED_PERMISSIONS = new Set([
   "notifications",
   "media",
@@ -27,29 +38,11 @@ let win;
 let sidebar;
 let accounts = [];
 const views = new Map(); // id -> WebContentsView
-const badges = new Map(); // id -> { count, unread }
+const badges = new Map(); // id -> { title, favicon }
 let activeId;
+let editor; // { win, targetId }（targetId が無ければ新規追加）
 
-function expandHome(p) {
-  return p && p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p;
-}
-
-function loadAccounts() {
-  if (!fs.existsSync(ACCOUNTS_FILE)) {
-    fs.mkdirSync(path.dirname(ACCOUNTS_FILE), { recursive: true });
-    fs.copyFileSync(path.join(__dirname, "..", "accounts.example.json"), ACCOUNTS_FILE);
-    console.log(`accounts.json が無いので見本をコピーした: ${ACCOUNTS_FILE}`);
-  }
-  const { accounts: list } = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, "utf8"));
-  const seen = new Set();
-  for (const a of list) {
-    if (!/^[a-z0-9_-]+$/i.test(a.id)) throw new Error(`id は英数字と -_ のみ: ${a.id}`);
-    if (seen.has(a.id)) throw new Error(`id が重複している: ${a.id}`);
-    if (!a.url) throw new Error(`url が無い: ${a.id}`);
-    seen.add(a.id);
-  }
-  return list;
-}
+const findAccount = (id) => accounts.find((a) => a.id === id);
 
 function readState() {
   try {
@@ -63,12 +56,15 @@ function writeState(patch) {
   fs.writeFileSync(STATE_FILE(), JSON.stringify({ ...readState(), ...patch }, null, 2));
 }
 
-function iconDataUrl(account) {
-  const p = expandHome(account.icon);
+function iconDataUrl(iconPath) {
+  const p = store.expandHome(iconPath);
   if (!p || !fs.existsSync(p)) return null;
-  return nativeImage.createFromPath(p).resize({ width: 96, height: 96, quality: "best" }).toDataURL();
+  const img = nativeImage.createFromPath(p);
+  return img.isEmpty() ? null : img.resize({ width: 96, height: 96, quality: "best" }).toDataURL();
 }
 
+// ---------------------------------------------------------------------------
+// 未読バッジ
 // 未読の拾い方はクライアントごとに違うので、タイトルと favicon の両方から拾って合成する。
 // どちらの形式にも当てはまらないクライアントは、バッジが出ないだけで他は動く。
 
@@ -86,6 +82,7 @@ function parseFavicons(favicons) {
 
 function setSignal(id, key, value) {
   const b = badges.get(id);
+  if (!b) return;
   b[key] = value;
   pushBadges();
 }
@@ -106,6 +103,9 @@ function pushBadges() {
   app.dock?.setBadge(total > 0 ? String(total) : all.some((b) => b.mention) ? "!" : all.some((b) => b.unread) ? "•" : "");
 }
 
+// ---------------------------------------------------------------------------
+// アカウントのビュー
+
 function layout() {
   const { width, height } = win.getContentBounds();
   sidebar.setBounds({ x: 0, y: 0, width: SIDEBAR_WIDTH, height });
@@ -115,9 +115,10 @@ function layout() {
 }
 
 function createAccountView(account) {
+  const { id } = account;
   const view = new WebContentsView({
     webPreferences: {
-      partition: `persist:acct-${account.id}`,
+      partition: partitionOf(id),
       preload: path.join(__dirname, "preload-account.js"),
       contextIsolation: true,
       sandbox: true,
@@ -138,19 +139,28 @@ function createAccountView(account) {
   });
 
   wc.on("page-title-updated", (_e, title) => {
-    setSignal(account.id, "title", parseTitle(title));
-    if (account.id === activeId) win.setTitle(`${account.name} — ${title}`);
+    setSignal(id, "title", parseTitle(title));
+    if (id === activeId) updateWindowTitle();
   });
-  wc.on("page-favicon-updated", (_e, favicons) => setSignal(account.id, "favicon", parseFavicons(favicons)));
+  wc.on("page-favicon-updated", (_e, favicons) => setSignal(id, "favicon", parseFavicons(favicons)));
 
   wc.on("context-menu", (_e, params) => buildContextMenu(wc, params).popup({ window: win }));
 
   view.setVisible(false);
   win.contentView.addChildView(view);
   wc.loadURL(account.url);
-  views.set(account.id, view);
-  badges.set(account.id, { title: { count: 0, unread: false }, favicon: { mention: false, unread: false } });
+  views.set(id, view);
+  badges.set(id, { title: { count: 0, unread: false }, favicon: { mention: false, unread: false } });
   return view;
+}
+
+function destroyAccountView(id) {
+  const view = views.get(id);
+  if (!view) return;
+  win.contentView.removeChildView(view);
+  view.webContents.close();
+  views.delete(id);
+  badges.delete(id);
 }
 
 function buildContextMenu(wc, params) {
@@ -167,7 +177,7 @@ function buildContextMenu(wc, params) {
   }
   if (params.linkURL) {
     t.push({ label: "リンクをブラウザで開く", click: () => shell.openExternal(params.linkURL) });
-    t.push({ label: "リンクをコピー", click: () => require("electron").clipboard.writeText(params.linkURL) });
+    t.push({ label: "リンクをコピー", click: () => clipboard.writeText(params.linkURL) });
     t.push({ type: "separator" });
   }
   if (params.mediaType === "image" && params.srcURL) {
@@ -185,21 +195,195 @@ function buildContextMenu(wc, params) {
   return Menu.buildFromTemplate(t);
 }
 
+function updateWindowTitle() {
+  const account = findAccount(activeId);
+  const pageTitle = views.get(activeId)?.webContents.getTitle();
+  win.setTitle(account ? `${account.name} — ${pageTitle}` : app.getName());
+}
+
 function activate(id) {
-  const account = accounts.find((a) => a.id === id) ?? accounts[0];
-  activeId = account.id;
-  const view = views.get(activeId) ?? createAccountView(account);
+  const account = findAccount(id) ?? accounts[0];
+  activeId = account?.id;
   for (const [vid, v] of views) v.setVisible(vid === activeId);
-  layout();
-  view.webContents.focus();
-  win.setTitle(`${account.name} — ${view.webContents.getTitle()}`);
+  if (account) {
+    const view = views.get(activeId) ?? createAccountView(account);
+    view.setVisible(true);
+    layout();
+    view.webContents.focus();
+    writeState({ activeId });
+  }
+  updateWindowTitle();
   sidebar.webContents.send("active", activeId);
-  writeState({ activeId });
 }
 
 function activeWebContents() {
   return views.get(activeId)?.webContents;
 }
+
+// ---------------------------------------------------------------------------
+// アカウント一覧の変更。追加・編集・削除・並べ替え・ファイルからの読み直しは全部ここを通す。
+
+function sendAccounts() {
+  sidebar.webContents.send(
+    "accounts",
+    accounts.map((a) => ({ id: a.id, name: a.name, color: a.color, icon: iconDataUrl(a.icon) })),
+  );
+  sidebar.webContents.send("active", activeId);
+  pushBadges();
+}
+
+function applyAccounts(next, { save = true } = {}) {
+  if (save) store.save(next);
+  const nextIds = new Set(next.map((a) => a.id));
+  for (const id of [...views.keys()]) if (!nextIds.has(id)) destroyAccountView(id);
+  for (const a of next) {
+    const before = findAccount(a.id);
+    if (views.has(a.id) && before && before.url !== a.url) views.get(a.id).webContents.loadURL(a.url);
+  }
+  accounts = next;
+  for (const a of accounts) if (!views.has(a.id)) createAccountView(a);
+  buildMenu();
+  sendAccounts();
+  activate(nextIds.has(activeId) ? activeId : accounts[0]?.id);
+  layout();
+}
+
+function reloadAccountsFile() {
+  try {
+    applyAccounts(store.load(), { save: false });
+  } catch (err) {
+    dialog.showErrorBox("accounts.json を読めませんでした", String(err.message ?? err));
+  }
+}
+
+async function removeAccount(id) {
+  const account = findAccount(id);
+  if (!account) return;
+  const { response, checkboxChecked } = await dialog.showMessageBox(win, {
+    type: "warning",
+    buttons: ["削除", "キャンセル"],
+    defaultId: 1,
+    cancelId: 1,
+    message: `「${account.name}」を削除しますか？`,
+    detail:
+      "一覧から外します。保存データを残しておけば、同じ URL で追加し直したときにログイン状態が戻ります。\n" +
+      "サーバー側のセッション（ログイン中の端末）は消えないので、不要ならクライアントの中で先にログアウトしてください。",
+    checkboxLabel: "このアカウントの保存データも消す（ログイン状態・暗号鍵・キャッシュ）",
+    checkboxChecked: false,
+  });
+  if (response !== 0) return;
+  applyAccounts(accounts.filter((a) => a.id !== id));
+  // データを残した場合は、同じ URL で追加し直したときにこの id（保存領域）を使えるよう覚えておく
+  const kept = (readState().removed ?? []).filter((r) => r.id !== id);
+  if (!checkboxChecked) kept.push({ id, url: account.url });
+  writeState({ removed: kept });
+  if (checkboxChecked) {
+    const ses = session.fromPartition(partitionOf(id));
+    await ses.clearStorageData();
+    await ses.clearCache();
+    store.removeImportedIcon(account);
+  }
+}
+
+function reorderAccounts(ids) {
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const next = ids.filter((id) => byId.has(id)).map((id) => byId.get(id));
+  for (const a of accounts) if (!next.includes(a)) next.push(a);
+  if (next.every((a, i) => a === accounts[i])) return;
+  applyAccounts(next);
+}
+
+// ---------------------------------------------------------------------------
+// アカウントの追加・編集シート
+
+function openEditor(targetId) {
+  if (editor) {
+    editor.win.focus();
+    return;
+  }
+  const w = new BrowserWindow({
+    parent: win,
+    modal: true,
+    width: 460,
+    height: 390,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload-editor.js"),
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  editor = { win: w, targetId };
+  w.loadFile(path.join(__dirname, "editor.html"));
+  w.once("ready-to-show", () => w.show());
+  w.on("closed", () => {
+    editor = undefined;
+    activeWebContents()?.focus();
+  });
+}
+
+ipcMain.handle("editor:init", () => {
+  const account = editor?.targetId ? findAccount(editor.targetId) : undefined;
+  if (!account) return { isNew: true, account: { name: "", url: "", color: "#0dbd8b", icon: null } };
+  return {
+    isNew: false,
+    account: { ...account, iconPreview: iconDataUrl(account.icon), partition: partitionOf(account.id) },
+  };
+});
+
+ipcMain.handle("editor:choose-icon", async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(editor.win, {
+    properties: ["openFile"],
+    filters: [{ name: "画像", extensions: ["png", "jpg", "jpeg", "gif", "webp", "icns", "tiff"] }],
+  });
+  if (canceled || !filePaths[0]) return null;
+  const preview = iconDataUrl(filePaths[0]);
+  return preview ? { path: filePaths[0], preview } : { error: "この画像は読み込めませんでした" };
+});
+
+ipcMain.handle("editor:save", (_e, data) => {
+  const name = String(data.name ?? "").trim();
+  if (!name) return { error: "名前を入れてください" };
+  let url;
+  try {
+    url = store.normalizeUrl(data.url);
+  } catch {
+    return { error: "URL が正しくありません（https://… の形で入れてください）" };
+  }
+  const targetId = editor?.targetId;
+  const before = targetId ? findAccount(targetId) : undefined;
+  const ids = accounts.map((a) => a.id);
+  // データを残して削除したアカウントと同じ URL なら、その保存領域を引き継ぐ（ログイン状態が戻る）
+  const removed = readState().removed ?? [];
+  const revived = before ? undefined : removed.find((r) => r.url === url && !ids.includes(r.id));
+  const id = before?.id ?? revived?.id ?? store.makeId(name, url, ids);
+
+  // 手で書き足した未知のキーは残す
+  const entry = { ...before, id, name, url };
+  if (data.color) entry.color = data.color;
+  if (data.iconChanged) {
+    if (data.icon) entry.icon = store.importIcon(id, data.icon);
+    else delete entry.icon;
+  }
+
+  try {
+    applyAccounts(before ? accounts.map((a) => (a.id === id ? entry : a)) : [...accounts, entry]);
+  } catch (err) {
+    return { error: String(err.message ?? err) };
+  }
+  if (revived) writeState({ removed: removed.filter((r) => r !== revived) });
+  if (!before) activate(id);
+  editor?.win.close();
+  return { ok: true };
+});
+
+ipcMain.on("editor:cancel", () => editor?.win.close());
+
+// ---------------------------------------------------------------------------
+// メニュー
 
 function buildMenu() {
   const accountItems = accounts.map((a, i) => ({
@@ -237,7 +421,13 @@ function buildMenu() {
       submenu: [
         ...accountItems,
         { type: "separator" },
-        { label: "accounts.json を開く", click: () => shell.openPath(ACCOUNTS_FILE) },
+        { label: "アカウントを追加…", accelerator: "CmdOrCtrl+Shift+N", click: () => openEditor() },
+        // メニューは activeId が決まる前にも作るので、有効/無効ではなく押したときに判定する
+        { label: "表示中のアカウントを編集…", click: () => activeId && openEditor(activeId) },
+        { label: "表示中のアカウントを削除…", click: () => activeId && removeAccount(activeId) },
+        { type: "separator" },
+        { label: "accounts.json を開く", click: () => shell.openPath(store.ACCOUNTS_FILE) },
+        { label: "accounts.json を読み直す", click: reloadAccountsFile },
       ],
     },
     { role: "windowMenu" },
@@ -250,6 +440,9 @@ function zoom(delta) {
   if (!wc) return;
   wc.setZoomLevel(delta === null ? 0 : wc.getZoomLevel() + delta);
 }
+
+// ---------------------------------------------------------------------------
+// ウィンドウ
 
 function createWindow() {
   const state = readState();
@@ -274,14 +467,12 @@ function createWindow() {
   win.contentView.addChildView(sidebar);
   sidebar.webContents.loadFile(path.join(__dirname, "sidebar.html"));
   sidebar.webContents.once("did-finish-load", () => {
-    sidebar.webContents.send(
-      "accounts",
-      accounts.map((a) => ({ id: a.id, name: a.name, color: a.color, icon: iconDataUrl(a) })),
-    );
+    sendAccounts();
     activate(state.activeId);
     // 残りのアカウントも裏で読み込み、起動直後から通知・未読が届くようにする
     for (const a of accounts) if (!views.has(a.id)) createAccountView(a);
     layout();
+    if (accounts.length === 0) openEditor();
   });
 
   win.on("resize", layout);
@@ -291,6 +482,17 @@ function createWindow() {
 }
 
 ipcMain.on("activate", (_e, id) => activate(id));
+ipcMain.on("add-account", () => openEditor());
+ipcMain.on("reorder", (_e, ids) => reorderAccounts(ids));
+ipcMain.on("account-menu", (_e, id) => {
+  if (!findAccount(id)) return;
+  Menu.buildFromTemplate([
+    { label: "編集…", click: () => openEditor(id) },
+    { label: "再読み込み", click: () => views.get(id)?.webContents.reload() },
+    { type: "separator" },
+    { label: "削除…", click: () => removeAccount(id) },
+  ]).popup({ window: win });
+});
 // 通知がクリックされたら（preload-account.js が知らせてくる）、そのアカウントへ切り替える
 ipcMain.on("focus-me", (e) => {
   for (const [id, v] of views) {
@@ -305,7 +507,8 @@ ipcMain.on("focus-me", (e) => {
 
 // 保存先は productName（"Element Multi"）ではなく固定名にする。
 // 開発起動（pnpm start）と .app で同じ partition を共有し、ログインをやり直さずに済むように。
-app.setPath("userData", path.join(app.getPath("appData"), "element-multi"));
+// ELEMENT_MULTI_USER_DATA は動作確認用（普段使いのログイン状態に触れずに別の保存先で起動する）
+app.setPath("userData", process.env.ELEMENT_MULTI_USER_DATA || path.join(app.getPath("appData"), "element-multi"));
 
 // Google 等の IdP は UA に "Electron/" があると埋め込みブラウザ扱いでログインを拒むことがあるので外す
 app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|element-multi)\/\S+/g, "");
@@ -319,7 +522,18 @@ if (!app.requestSingleInstanceLock()) {
     win.focus();
   });
   app.whenReady().then(() => {
-    accounts = loadAccounts();
+    try {
+      accounts = store.load();
+    } catch (err) {
+      // 壊れたファイルを空の一覧で上書きしないよう、別名に退避してから空で始める
+      const backup = `${store.ACCOUNTS_FILE}.broken-${Date.now()}`;
+      fs.renameSync(store.ACCOUNTS_FILE, backup);
+      dialog.showErrorBox(
+        "accounts.json を読めませんでした",
+        `${err.message ?? err}\n\n元のファイルは次へ退避しました:\n${backup}`,
+      );
+      accounts = [];
+    }
     buildMenu();
     createWindow();
   });
