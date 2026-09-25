@@ -1,14 +1,38 @@
 {
   "name": "element-multi",
+  "productName": "Element Multi",
   "version": "0.1.0",
   "private": true,
   "description": "複数の Matrix アカウント（Element Web）を1つのウィンドウで切り替えるデスクトップシェル",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder --mac dir",
+    "install-app": "pnpm run dist && ditto \"dist/mac-arm64/Element Multi.app\" \"$HOME/Applications/Element Multi.app\""
   },
   "devDependencies": {
-    "electron": "^44.4.5"
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "jp.knagato.element-multi",
+    "productName": "Element Multi",
+    "files": [
+      "src/**",
+      "accounts.example.json",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.social-networking",
+      "icon": "build/icon.png",
+      "target": "dir",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Matrix の通話でマイクを使います",
+        "NSCameraUsageDescription": "Matrix の通話でカメラを使います"
+      }
+    }
   },
   "pnpm": {
     "onlyBuiltDependencies": [

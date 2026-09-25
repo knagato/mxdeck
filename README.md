@@ -28,6 +28,15 @@ node node_modules/electron/install.js   # pnpm が postinstall を飛ばした�
 pnpm start
 ```
 
+.app にして `~/Applications/Element Multi.app` に入れる（ad-hoc 署名、公証なし。自分の Mac 用）:
+
+```bash
+pnpm run install-app   # electron-builder で dist/ に作り、~/Applications へ ditto
+```
+
+起動中の .app は先に終了しておく。保存先は開発起動と同じ `~/Library/Application Support/element-multi`
+に固定してあるので、`pnpm start` と .app でログイン状態を共有する（同時には起動しない）。
+
 アカウントは `~/.config/element-multi/accounts.json`（`ELEMENT_MULTI_ACCOUNTS` で変更可）。
 無ければ `accounts.example.json` をコピーして作る。
 
@@ -52,4 +61,6 @@ pnpm start
   ブラウザにしか同期パスキーを渡さない。Google の SSO では「別の方法を試す」からパスワード＋2段階認証で入る。
   UA からは `Electron/` を外してあるので、埋め込みブラウザとして弾かれることは避けている。
 - 未読数はタイトル依存。ブランドや Element の版でタイトル形式が変わると拾えなくなる。
-- パッケージング（.app 化・署名）はまだ。`pnpm start` で動かす。
+- 自動更新は無い。コードを変えたら `pnpm run install-app` で入れ直す。
+- プロセスを強制終了すると、次の起動で Element が「別のウィンドウで開いています」と出ることがある
+  （Element Web のセッションロックが残るため）。他に起動していなければ「続行」してよい。

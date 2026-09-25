@@ -280,6 +280,10 @@ ipcMain.on("focus-me", (e) => {
   }
 });
 
+// 保存先は productName（"Element Multi"）ではなく固定名にする。
+// 開発起動（pnpm start）と .app で同じ partition を共有し、ログインをやり直さずに済むように。
+app.setPath("userData", path.join(app.getPath("appData"), "element-multi"));
+
 // Google 等の IdP は UA に "Electron/" があると埋め込みブラウザ扱いでログインを拒むことがあるので外す
 app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|element-multi)\/\S+/g, "");
 
