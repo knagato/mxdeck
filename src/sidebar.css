@@ -55,7 +55,7 @@ button.active {
 button.active::before {
   content: "";
   position: absolute;
-  left: -12px;
+  left: -18px; /* サイドバーの左端まで */
   top: 10px;
   width: 4px;
   height: 28px;

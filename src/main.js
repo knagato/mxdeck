@@ -21,7 +21,7 @@ const path = require("node:path");
 const store = require("./accounts");
 const plugins = require("./plugins");
 
-const SIDEBAR_WIDTH = 72;
+const SIDEBAR_WIDTH = 84;
 const STATE_FILE = () => path.join(app.getPath("userData"), "state.json");
 const partitionOf = (id) => `persist:acct-${id}`;
 
@@ -540,7 +540,9 @@ function createWindow() {
     minWidth: 640,
     minHeight: 480,
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 26, y: 18 },
+    // 信号機ボタンがサイドバーの幅に収まる位置（macOS 26 では3つで幅 60pt ほど）。
+    // はみ出すとアカウントのページ左上（Element のスペース一覧など）に被る
+    trafficLightPosition: { x: 12, y: 18 },
   });
 
   sidebar = new WebContentsView({
