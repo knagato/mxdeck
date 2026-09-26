@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+    <link rel="stylesheet" href="editor.css" />
+  </head>
+  <body>
+    <form id="form" autocomplete="off">
+      <h1>GitHub からプラグインを追加</h1>
+
+      <label>
+        リポジトリ
+        <input id="repo" required spellcheck="false" placeholder="例: knagato/mxdeck-plugin-login-helper" />
+        <small>owner/repo か GitHub の URL。ブランチ・タグは #v1.0 のように後ろに付けます（無ければ既定のブランチ）</small>
+      </label>
+
+      <p id="error" class="error" hidden></p>
+
+      <div class="actions">
+        <button type="button" id="cancel">キャンセル</button>
+        <button type="submit" id="run" class="primary">ダウンロード</button>
+      </div>
+    </form>
+    <script src="plugin-install.js"></script>
+  </body>
+</html>

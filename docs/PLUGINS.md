@@ -10,13 +10,24 @@ a panel window, sign-in windows with their own storage, and frames inside the ac
 
 ## Installing
 
-プラグイン (Plugins) → プラグインを追加… (Add plugin…) and pick the folder, then restart.
+プラグイン (Plugins) → GitHub から追加… (Add from GitHub…) and enter the repository, then restart.
+It accepts `owner/repo`, `owner/repo#<branch, tag or commit>` and github.com URLs (including `/tree/<branch>`
+and `/releases/tag/<tag>`). Without a ref, the default branch is used.
+
+- mxdeck downloads the repository's archive (no git needed) into `~/.config/mxdeck/plugins/<id>`
+  and records where it came from in `plugins.json` (`source`, `commit`).
+- Adding the same plugin again replaces it with the newer code; `config` in plugins.json is kept.
+- Public repositories only. mxdeck does not run `npm install`, so a plugin with `dependencies` has to
+  commit its `node_modules`, or be cloned, installed and added with フォルダから追加… (Add from folder…).
+
+To use a folder you already have (e.g. while writing a plugin), choose フォルダから追加… (Add from folder…).
 Or edit `~/.config/mxdeck/plugins.json` (override with `MXDECK_PLUGINS`):
 
 ```json
 {
   "plugins": [
-    { "path": "~/src/mxdeck-plugin-hello", "enabled": true, "config": { "site": "https://example.com/" } }
+    { "path": "~/src/mxdeck-plugin-hello", "enabled": true, "config": { "site": "https://example.com/" } },
+    { "path": "~/.config/mxdeck/plugins/login-helper", "enabled": true, "source": "github:knagato/mxdeck-plugin-login-helper", "commit": "d9a455e…" }
   ]
 }
 ```
@@ -87,6 +98,7 @@ Preloads are sandboxed: `require("electron")` gives `ipcRenderer` and `contextBr
 
 ## Testing
 
-`node tests/plugins.test.mjs` starts mxdeck on a temporary profile with
+`pnpm test` runs `tests/github.test.mjs` (reading the repository spec and unpacking an archive
+from a local server) and `tests/plugins.test.mjs`, which starts mxdeck on a temporary profile with
 [`tests/fixture-plugin`](../tests/fixture-plugin) and local servers, and checks panels, sign-in
 storage and the frame origin check.

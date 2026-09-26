@@ -89,7 +89,9 @@ If the file is missing, `accounts.example.json` is copied there.
 | --- | --- |
 | [mxdeck-plugin-login-helper](https://github.com/knagato/mxdeck-plugin-login-helper) | Sign in to a service (Slack, …) in its own window and build the login command for its Matrix bridge (mautrix-slack, …). Tokens are shown masked and go only to the clipboard |
 
-To install one, clone it and pick its folder in プラグイン (Plugins) → プラグインを追加… (Add plugin…), then restart.
+To install one, choose プラグイン (Plugins) → GitHub から追加… (Add from GitHub…), enter `owner/repo`
+(e.g. `knagato/mxdeck-plugin-login-helper`), then restart. To use a local folder instead, pick it in
+フォルダから追加… (Add from folder…).
 Plugins run with mxdeck's own rights, so only add ones you trust. To write your own, see [docs/PLUGINS.md](docs/PLUGINS.md).
 
 ## How it works

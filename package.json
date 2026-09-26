@@ -24,7 +24,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node tests/plugins.test.mjs",
+    "test": "node --test tests/github.test.mjs && node tests/plugins.test.mjs",
     "dist": "electron-builder --mac dir --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false -c.mac.notarize=false",
     "install-app": "pnpm run dist && ditto \"dist/mac-arm64/mxdeck.app\" \"$HOME/Applications/mxdeck.app\"",
     "release": "./scripts/release.sh"

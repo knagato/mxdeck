@@ -4,14 +4,17 @@
 // 境界はふたつ: 読み込むのは明示されたフォルダだけ、フレームからの IPC はオリジンを main で確かめる。
 // 書き方は docs/PLUGINS.md。
 
-const { app, BrowserWindow, Menu, dialog, ipcMain, session, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, net, session, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const store = require("./accounts");
+const github = require("./github");
 
 const API_VERSION = 1;
 const PLUGINS_FILE =
   process.env.MXDECK_PLUGINS || path.join(path.dirname(store.ACCOUNTS_FILE), "plugins.json");
+// GitHub から追加したプラグインは、ここの <id>/ に置く
+const PLUGINS_DIR = path.join(path.dirname(PLUGINS_FILE), "plugins");
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 const plugins = []; // { id, name, dir, entry, menu: [], panelHandlers: Map, frameHandlers: Map, frames: {origins, preload}[], windows: Set }
@@ -380,7 +383,8 @@ function menuTemplate() {
     };
   });
   items.push(
-    { label: "プラグインを追加…", click: addPlugin },
+    { label: "フォルダから追加…", click: addPlugin },
+    { label: "GitHub から追加…", click: openInstaller },
     { label: "有効なプラグイン", submenu: manage.length ? manage : [{ label: "（なし）", enabled: false }] },
     { label: "plugins.json を開く", click: openFile },
   );
@@ -442,6 +446,127 @@ async function addPlugin() {
   await askRestart(`「${info.name}」を追加しました`);
 }
 
+// ---------------------------------------------------------------------------
+// GitHub から追加。リポジトリを入れるシートを出し、アーカイブを落として PLUGINS_DIR/<id> に置く。
+// 同じ id のものが PLUGINS_DIR にあれば、入れ替える（更新）
+
+let installer; // シートの BrowserWindow
+
+function openInstaller() {
+  if (installer && !installer.isDestroyed()) {
+    if (installer.isVisible()) {
+      installer.focus();
+      return;
+    }
+    // 別のシート（アカウントの編集）が出ていて表に出られなかったもの。作り直す
+    installer.destroy();
+  }
+  installer = new BrowserWindow({
+    parent: host.win(),
+    modal: true,
+    width: 460,
+    height: 250,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload-plugin-install.js"),
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  installer.loadFile(path.join(__dirname, "plugin-install.html"));
+  installer.once("ready-to-show", () => installer.show());
+}
+
+const fromInstaller = (e) => !!installer && !installer.isDestroyed() && e.sender === installer.webContents;
+
+ipcMain.handle("plugin-install:run", async (e, input) => {
+  if (!fromInstaller(e)) return { error: "forbidden" };
+  try {
+    return await installFromGitHub(input);
+  } catch (err) {
+    return { error: String(err.message ?? err) };
+  }
+});
+ipcMain.on("plugin-install:cancel", (e) => fromInstaller(e) && installer.close());
+
+// plugins.json の項目が指すプラグインの id（読めなければ null）
+function entryId(e) {
+  try {
+    return inspect(path.resolve(store.expandHome(String(e.path)))).id;
+  } catch {
+    return null;
+  }
+}
+
+async function installFromGitHub(input) {
+  const spec = github.parseSpec(input);
+  fs.mkdirSync(PLUGINS_DIR, { recursive: true });
+  const tmp = fs.mkdtempSync(path.join(PLUGINS_DIR, ".download-"));
+  try {
+    const { commit } = await github.download(spec, tmp, { fetch: net.fetch });
+    let info;
+    try {
+      info = inspect(tmp);
+    } catch (err) {
+      throw new Error(`mxdeck のプラグインではありません: ${err.message ?? err}`);
+    }
+    // npm install はしない。依存パッケージが要るものは、node_modules ごと置いてあるときだけ入れる
+    const pkg = JSON.parse(fs.readFileSync(path.join(tmp, "package.json"), "utf8"));
+    if (Object.keys(pkg.dependencies ?? {}).length && !fs.existsSync(path.join(tmp, "node_modules"))) {
+      throw new Error(
+        "依存パッケージ（dependencies）が要るプラグインは、GitHub から直接は追加できません。" +
+          "clone して pnpm install してから「フォルダから追加…」で追加してください",
+      );
+    }
+
+    const dest = path.join(PLUGINS_DIR, info.id);
+    const entries = readFile();
+    const current = entries.find((e) => path.resolve(store.expandHome(String(e.path))) === dest);
+    const clash = entries.find((e) => e !== current && entryId(e) === info.id);
+    if (clash) throw new Error(`同じ id（${info.id}）のプラグインが追加済みです: ${clash.path}`);
+
+    const source = github.specString(spec);
+    const at = commit ? `（${commit.slice(0, 7)}）` : "";
+    const { response } = await dialog.showMessageBox(installer, {
+      type: "warning",
+      buttons: [current ? "更新" : "追加", "キャンセル"],
+      defaultId: 1,
+      cancelId: 1,
+      message: current
+        ? `「${info.name}」を ${info.version} に更新しますか？`
+        : `「${info.name}」${info.version} を追加しますか？`,
+      detail:
+        `${source}${at}\n\nプラグインは mxdeck の中で、mxdeck と同じ権限で動きます` +
+        "（ファイル・ネットワーク・各サイトの保存データに触れられます）。信頼できるものだけを追加してください。",
+    });
+    if (response !== 0) return { canceled: true };
+
+    // 入れ替えは、古いものを退けてから新しいものを置く（途中で失敗しても古いものへ戻せるように）
+    const old = fs.existsSync(dest) ? `${tmp}-old` : null;
+    if (old) fs.renameSync(dest, old);
+    try {
+      fs.renameSync(tmp, dest);
+    } catch (err) {
+      if (old) fs.renameSync(old, dest);
+      throw err;
+    }
+    if (old) fs.rmSync(old, { recursive: true, force: true });
+
+    // config など手で書いたキーは残す。明示して入れたものなので、無効にしてあっても有効に戻す
+    const entry = { path: store.contractHome(dest), ...current, enabled: true, source, commit: commit ?? undefined };
+    writeFile(current ? entries.map((e) => (e === current ? entry : e)) : [...entries, entry]);
+    host.rebuildMenu();
+    installer.close();
+    askRestart(current ? `「${info.name}」を更新しました` : `「${info.name}」を追加しました`);
+    return { ok: true };
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 async function setEnabled(p, enabled) {
   writeFile(readFile().map((e) => (e.path === p ? { ...e, enabled } : e)));
   host.rebuildMenu();
@@ -467,4 +592,5 @@ module.exports = {
   windowsByPlugin,
   closeAll,
   PLUGINS_FILE,
+  PLUGINS_DIR,
 };
