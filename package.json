@@ -1,7 +1,7 @@
 {
   "name": "mxdeck",
   "productName": "mxdeck",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A desktop shell that keeps several Matrix accounts (Element Web, Cinny, …) side by side in one window",
   "keywords": [
