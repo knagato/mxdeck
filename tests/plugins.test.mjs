@@ -71,7 +71,7 @@ const child = spawn(electron, [root, "--remote-debugging-port=0"], {
 
 const read = () =>
   fs.existsSync(out) ? fs.readFileSync(out, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : [];
-const want = ["frame-hello", "frame-acked", "panel-ping", "panel-push", "panel-shown", "panel-closed", "site"];
+const want = ["frame-hello", "frame-acked", "panel-ping", "panel-push", "panel-shown", "panel-closed", "site", "site-windows"];
 
 async function pageTitles() {
   const portFile = path.join(tmp, "ud", "DevToolsActivePort");
@@ -112,6 +112,7 @@ try {
   assert.equal(byKind("panel-ping")[0].active.id, "a");
   assert.equal(byKind("panel-push")[0].v, "hi");
   assert.equal(byKind("panel-closed").length, 1, "Esc でパネルが閉じていない");
+  assert.equal(byKind("panel-reopen")[0].same, true, "同じパネルを 2 つ開いた");
 
   // サイト: HttpOnly の Cookie と localStorage が読め、アカウントの保存領域には入らない
   const s = byKind("site")[0];
@@ -119,6 +120,13 @@ try {
   assert.equal(s.httpOnly, true);
   assert.equal(s.stored, "secret-token");
   assert.equal(s.leaked, 0);
+
+  // サイトのウィンドウ: タブは同じウィンドウ、ポップアップは別、sites.close で全部閉じる
+  const sw = byKind("site-windows")[0];
+  assert.deepEqual(sw.afterTab, { windows: 1, url: `${originOf(site)}/as-tab` });
+  assert.equal(sw.afterPopup, 2);
+  assert.match(sw.title, / — Fixture$/);
+  assert.equal(sw.afterClose, 0);
 
   console.log("ok: frames / panel / sites / origin check");
 } finally {

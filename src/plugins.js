@@ -129,6 +129,7 @@ function makeContext(plugin, config) {
     sites: {
       session: (name) => siteSession(plugin, name),
       open: (name, url, opts) => openSite(plugin, name, url, opts),
+      close: (name) => closeSite(plugin, name),
     },
 
     frames: {
@@ -160,7 +161,16 @@ function makeContext(plugin, config) {
 // ---------------------------------------------------------------------------
 // パネル（拡張のポップアップにあたる、メインウィンドウに付くシート）
 
+const openPanels = new Map(); // "<plugin>:<file>" -> handle
+
+// 同じパネルが開いていれば、それを返す（メニューを 2 回押してシートが重ならないように）
 function openPanel(plugin, { file, width = 420, height = 520, resizable = false } = {}) {
+  const key = `${plugin.id}:${path.resolve(plugin.dir, file)}`;
+  const open = openPanels.get(key);
+  if (open && !open.window.isDestroyed()) {
+    open.window.focus();
+    return open;
+  }
   const w = new BrowserWindow({
     parent: host.win(),
     modal: true,
@@ -195,11 +205,14 @@ function openPanel(plugin, { file, width = 420, height = 520, resizable = false 
   });
   w.loadFile(path.resolve(plugin.dir, file));
   w.once("ready-to-show", () => w.show());
-  return {
+  const handle = {
     window: w,
     send: (channel, payload) => !w.isDestroyed() && w.webContents.send("mxdeck:panel", channel, payload),
     close: () => !w.isDestroyed() && w.close(),
   };
+  openPanels.set(key, handle);
+  w.on("closed", () => openPanels.get(key) === handle && openPanels.delete(key));
+  return handle;
 }
 
 const panelOwners = new Map(); // webContents.id -> plugin
@@ -231,7 +244,8 @@ function siteSession(plugin, name) {
   return siteSessions.get(partition);
 }
 
-const siteWindows = new Map(); // partition -> BrowserWindow
+const siteWindows = new Map(); // partition -> BrowserWindow（sites.open が開いた、そのサイトの主ウィンドウ）
+const sitePopups = new Map(); // partition -> Set<BrowserWindow>（そこから開いたポップアップ）
 
 function siteWindowOptions(ses, show) {
   return {
@@ -242,15 +256,32 @@ function siteWindowOptions(ses, show) {
   };
 }
 
-function wireSiteWindow(plugin, w, ses) {
+function wireSiteWindow(plugin, w, ses, partition) {
   track(plugin, w);
   const wc = w.webContents;
-  // SSO のポップアップ（Google など）は同じ保存領域で開く。それ以外のスキームは開かない
-  wc.setWindowOpenHandler(({ url }) => {
+  // ウィンドウが増えると、どれが何か分からなくなる。新しいタブとして開くもの（target=_blank、
+  // ワークスペースを開く等）は、このウィンドウの中で開く。サイズ指定つきのポップアップ（Google 等の
+  // SSO。閉じるときに opener へ結果を返す）だけは、同じ保存領域の別ウィンドウで開く。
+  // http(s) 以外のスキーム（デスクトップアプリを呼ぶ slack:// 等）は開かない
+  wc.setWindowOpenHandler(({ url, disposition }) => {
     if (!/^https?:/.test(url)) return { action: "deny" };
+    if (disposition !== "new-window") {
+      wc.loadURL(url);
+      return { action: "deny" };
+    }
     return { action: "allow", overrideBrowserWindowOptions: siteWindowOptions(ses, true) };
   });
-  wc.on("did-create-window", (child) => wireSiteWindow(plugin, child, ses));
+  wc.on("did-create-window", (child) => {
+    if (!sitePopups.has(partition)) sitePopups.set(partition, new Set());
+    sitePopups.get(partition).add(child);
+    child.on("closed", () => sitePopups.get(partition)?.delete(child));
+    wireSiteWindow(plugin, child, ses, partition);
+  });
+  // どのプラグインのウィンドウかをタイトルで示す（普通のブラウザと見分けられるように）
+  wc.on("page-title-updated", (e, title) => {
+    e.preventDefault();
+    w.setTitle(`${title} — ${plugin.name}`);
+  });
   wc.on("context-menu", (_e, p) => {
     const t = [];
     if (p.isEditable) t.push({ role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" });
@@ -268,8 +299,7 @@ function openSite(plugin, name, url, { show = true } = {}) {
   if (!w || w.isDestroyed()) {
     w = new BrowserWindow(siteWindowOptions(ses, show));
     siteWindows.set(partition, w);
-    wireSiteWindow(plugin, w, ses);
-    w.webContents.on("page-title-updated", (_e, title) => w.setTitle(`${title} — ${plugin.name}`));
+    wireSiteWindow(plugin, w, ses, partition);
     w.on("closed", () => siteWindows.get(partition) === w && siteWindows.delete(partition));
     if (url) w.loadURL(url);
   } else if (show) {
@@ -284,8 +314,16 @@ function openSite(plugin, name, url, { show = true } = {}) {
     loaded: () =>
       wc.isLoading() ? new Promise((resolve) => wc.once("did-stop-loading", resolve)) : Promise.resolve(),
     currentPage: () => (wc.isDestroyed() ? null : { url: wc.getURL(), title: wc.getTitle() }),
-    close: () => !w.isDestroyed() && w.close(),
+    close: () => closeSite(plugin, name),
   };
+}
+
+// そのサイトのウィンドウをポップアップも含めて閉じ、閉じた数を返す。保存領域（サインイン）はそのまま
+function closeSite(plugin, name) {
+  const partition = `persist:plugin-${plugin.id}-${name}`;
+  const open = [siteWindows.get(partition), ...(sitePopups.get(partition) ?? [])].filter((w) => w && !w.isDestroyed());
+  for (const w of open) w.close();
+  return open.length;
 }
 
 function track(plugin, w) {

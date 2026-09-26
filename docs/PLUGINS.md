@@ -50,10 +50,11 @@ See [`examples/hello-plugin`](../examples/hello-plugin) for a complete one.
 | `ctx.id`, `ctx.dir`, `ctx.config`, `ctx.locale` | The plugin's id, folder, `config` from plugins.json, and the app locale (`en-US`, `ja`, …) |
 | `ctx.menu.add(item)` | Add a menu item (`{ label, accelerator?, click }` or `{ type: "separator" }`) to the プラグイン menu |
 | `ctx.accounts.list()` / `ctx.accounts.active()` | `{ id, name, url }` of every account / of the visible one (or `null`) |
-| `ctx.panel.open({ file, width?, height?, resizable? })` | Open an HTML file from the plugin as a sheet on the main window. Returns `{ window, send(channel, payload), close() }` |
+| `ctx.panel.open({ file, width?, height?, resizable? })` | Open an HTML file from the plugin as a sheet on the main window (or focus it if already open). Returns `{ window, send(channel, payload), close() }` |
 | `ctx.panel.handle(channel, fn)` | Answer `window.mxdeck.invoke(channel, ...args)` from the plugin's panels |
 | `ctx.sites.session(name)` | The Electron `session` for storage `persist:plugin-<id>-<name>`, separate from every account. Permission requests are denied |
-| `ctx.sites.open(name, url, { show? })` | A browser window on that storage, for signing in to a site. Reuses the open one. Returns `{ window, webContents, session, loaded(), currentPage(), close() }` |
+| `ctx.sites.open(name, url, { show? })` | A browser window on that storage, for signing in to a site. Reuses the open one. Links that open a new tab load in the same window; only sized popups (SSO) get their own. Returns `{ window, webContents, session, loaded(), currentPage(), close() }` |
+| `ctx.sites.close(name)` | Close that site's window and its popups, and return how many were open. The sign-in stays in the storage |
 | `ctx.frames.inject({ origins, preload })` | Run `preload` in the frames of the account views (e.g. a widget iframe inside Element) |
 | `ctx.frames.handle(channel, fn)` | Answer `ipcRenderer.invoke("mxdeck:frame", "<id>", channel, payload)` from those frames. `fn(payload, { account, origin })` |
 | `ctx.frames.send(channel, payload, { accountId? })` | Send to those frames; the preload listens with `ipcRenderer.on("mxdeck:frame:<id>", (e, channel, payload) => …)` |

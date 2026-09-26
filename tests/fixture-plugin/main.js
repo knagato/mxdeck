@@ -36,6 +36,7 @@ exports.activate = (ctx) => {
 
   setTimeout(async () => {
     panel = ctx.panel.open({ file: path.join(__dirname, "panel.html") });
+    record("panel-reopen", { same: ctx.panel.open({ file: path.join(__dirname, "panel.html") }) === panel });
     const site = ctx.sites.open("site", ctx.config.siteUrl, { show: false });
     await site.loaded();
     const [cookie] = await site.session.cookies.get({ url: ctx.config.siteUrl, name: "sid" });
@@ -46,5 +47,22 @@ exports.activate = (ctx) => {
       .session.fromPartition("persist:acct-a")
       .cookies.get({ name: "sid" });
     record("site", { cookie: cookie?.value, httpOnly: cookie?.httpOnly, stored, leaked: accountPartitionCookies.length });
+
+    // 新しいタブとして開くものは同じウィンドウで、サイズ指定つきのポップアップだけ別ウィンドウで開く
+    const { BrowserWindow } = require("electron");
+    const siteWindows = () =>
+      BrowserWindow.getAllWindows().filter((w) => w.webContents.session === site.session && !w.isDestroyed());
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const origin = new URL(ctx.config.siteUrl).origin;
+    await site.webContents.executeJavaScript(`window.open("${origin}/as-tab"); 1`, true);
+    await sleep(800);
+    const afterTab = { windows: siteWindows().length, url: site.currentPage().url };
+    await site.webContents.executeJavaScript(`window.open("${origin}/popup", "sso", "width=400,height=300"); 1`, true);
+    await sleep(800);
+    const afterPopup = siteWindows().length;
+    const title = site.window.getTitle();
+    ctx.sites.close("site");
+    await sleep(800);
+    record("site-windows", { afterTab, afterPopup, title, afterClose: siteWindows().length });
   }, 1500);
 };
