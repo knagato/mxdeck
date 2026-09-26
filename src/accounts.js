@@ -88,6 +88,7 @@ function removeImportedIcon(account) {
 module.exports = {
   ACCOUNTS_FILE,
   expandHome,
+  contractHome,
   load,
   save,
   normalizeUrl,

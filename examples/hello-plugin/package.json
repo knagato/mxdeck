@@ -1,0 +1,8 @@
+{
+  "name": "mxdeck-plugin-hello",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The smallest mxdeck plugin: a menu item, a panel, and a sign-in window",
+  "license": "MIT",
+  "mxdeck": { "id": "hello", "name": "Hello", "main": "main.js", "api": 1 }
+}

@@ -21,6 +21,7 @@ and friends are singletons), so mxdeck does it from the outside: one isolated br
 - Unread badges in the sidebar and the Dock (from the page title for Element, from the favicon for Cinny)
 - Add, edit, remove and reorder accounts inside the app (written back to `accounts.json`)
 - ⌘1–⌘9 to switch accounts, and a per-account memory usage view
+- Plugins: add menu items, panels, sign-in windows with their own storage, and code that talks to widgets inside the clients ([docs/PLUGINS.md](docs/PLUGINS.md))
 
 The UI is Japanese only for now.
 
@@ -104,6 +105,8 @@ If the file is missing, `accounts.example.json` is copied there.
   reports a notification click. IPC meant for the sidebar or the editor sheet checks its sender, so account views can't use it.
 - Login state and keys are stored by each client inside its partition (`~/Library/Application Support/mxdeck/Partitions/`),
   as in a browser. There is no keychain protection like Element Desktop's.
+- Plugins run with mxdeck's own rights. Only folders listed in `plugins.json` are loaded, and adding one from the menu asks first.
+  Messages from frames reach a plugin only from an account view and from the origins it declared ([docs/PLUGINS.md](docs/PLUGINS.md#frames)).
 
 ## Limitations
 
@@ -126,6 +129,8 @@ MXDECK_USER_DATA=/tmp/mxdeck-test/ud MXDECK_ACCOUNTS=/tmp/mxdeck-test/accounts.j
 ```
 
 With `--remote-debugging-port`, the sidebar and the editor sheet can be driven over CDP (`http://127.0.0.1:19222/json`).
+
+`pnpm test` starts mxdeck on a temporary profile with a test plugin and checks the plugin API.
 
 ### Releasing
 

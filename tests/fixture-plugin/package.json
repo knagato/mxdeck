@@ -1,0 +1,6 @@
+{
+  "name": "mxdeck-plugin-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "mxdeck": { "id": "fixture", "name": "Fixture", "main": "main.js", "api": 1 }
+}

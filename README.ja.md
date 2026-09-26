@@ -21,6 +21,7 @@ Element Web の内部（`MatrixClientPeg` などのシングルトン）をマ�
 - 未読バッジ（サイドバーと Dock）。Element はタイトル、Cinny は favicon から拾う
 - アプリ上でアカウントの追加・編集・削除・並べ替え（`accounts.json` に書き戻る）
 - ⌘1〜⌘9 で切り替え、アカウントごとのメモリ使用量の表示
+- プラグイン: メニュー項目・パネル・専用の保存領域を持つサインイン用ウィンドウ・クライアント内のウィジェットとのやりとりを足せる（[docs/PLUGINS.md](docs/PLUGINS.md)）
 
 UI は今のところ日本語のみ。
 
@@ -103,6 +104,8 @@ pnpm run install-app
   サイドバーや編集シート向けの IPC は送り元を確かめ、アカウントのビューからは叩けない。
 - ログイン状態・暗号鍵は各クライアントが partition 内（`~/Library/Application Support/mxdeck/Partitions/`）に保存する。
   ブラウザ版と同じで、Element Desktop のようなキーチェーンでの保護は無い。
+- プラグインは mxdeck と同じ権限で動く。読み込むのは `plugins.json` に書かれたフォルダだけで、メニューから追加するときは確認を出す。
+  フレームからのメッセージは、アカウントのビューの、プラグインが宣言したオリジンからのものだけを通す（[docs/PLUGINS.md](docs/PLUGINS.md#frames)）。
 
 ## 制限
 
@@ -125,6 +128,8 @@ MXDECK_USER_DATA=/tmp/mxdeck-test/ud MXDECK_ACCOUNTS=/tmp/mxdeck-test/accounts.j
 ```
 
 `--remote-debugging-port` を付けると CDP（`http://127.0.0.1:19222/json`）からサイドバーや編集シートを操作できる。
+
+`pnpm test` は、一時的な保存先とテスト用プラグインで mxdeck を起動し、プラグイン API を確かめる。
 
 ### リリース
 

@@ -19,6 +19,7 @@ const {
 const fs = require("node:fs");
 const path = require("node:path");
 const store = require("./accounts");
+const plugins = require("./plugins");
 
 const SIDEBAR_WIDTH = 72;
 const STATE_FILE = () => path.join(app.getPath("userData"), "state.json");
@@ -140,10 +141,13 @@ function createAccountView(account) {
       sandbox: true,
       backgroundThrottling: false,
       spellcheck: true,
+      // フレームに差し込むプラグインがあるときだけ、iframe でも preload を走らせる
+      nodeIntegrationInSubFrames: plugins.usesFrames(),
     },
   });
   const wc = view.webContents;
   const ses = wc.session;
+  plugins.prepareAccountSession(ses);
 
   // 権限はそのアカウントのサイトを表示している間だけ出す。SSO などで別サイトへ移った画面には出さない。
   // 判定はトップレベルの URL で行う（通話ウィジェット等の iframe は親ページの許可で動く）。
@@ -459,6 +463,7 @@ function buildMenu() {
         { label: "accounts.json を読み直す", click: reloadAccountsFile },
       ],
     },
+    plugins.menuTemplate(),
     { role: "windowMenu" },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -487,6 +492,10 @@ function memoryReport() {
 
   const rows = accounts.map((a) => claim(a.name, pidsOf(views.get(a.id)?.webContents)));
   rows.push(claim("（サイドバー）", pidsOf(sidebar.webContents)));
+  for (const p of plugins.windowsByPlugin()) {
+    const pids = [...new Set(p.webContents.flatMap(pidsOf))];
+    if (pids.length) rows.push(claim(`（プラグイン: ${p.name}）`, pids));
+  }
 
   const byType = new Map();
   for (const m of metrics) {
@@ -550,10 +559,12 @@ function createWindow() {
     for (const a of accounts) if (!views.has(a.id)) createAccountView(a);
     layout();
     if (accounts.length === 0) openEditor();
+    plugins.showErrors();
   });
 
   win.on("resize", layout);
   win.on("close", () => writeState({ bounds: win.getBounds() }));
+  win.on("closed", () => plugins.closeAll());
   win.on("focus", () => activeWebContents()?.focus());
   layout();
 }
@@ -572,6 +583,7 @@ onSidebar("account-menu", (id) => {
 });
 // 通知がクリックされたら（preload-account.js が知らせてくる）、そのアカウントへ切り替える
 ipcMain.on("focus-me", (e) => {
+  if (!e.senderFrame || e.senderFrame.parent) return;
   for (const [id, v] of views) {
     if (v.webContents === e.sender) {
       if (win.isMinimized()) win.restore();
@@ -611,6 +623,17 @@ if (!app.requestSingleInstanceLock()) {
       );
       accounts = [];
     }
+    plugins.load({
+      win: () => win,
+      accounts: () => accounts,
+      activeId: () => activeId,
+      accountViews: () =>
+        [...views].flatMap(([id, v]) => {
+          const account = findAccount(id);
+          return account && !v.webContents.isDestroyed() ? [{ account, wc: v.webContents }] : [];
+        }),
+      rebuildMenu: () => buildMenu(),
+    });
     buildMenu();
     createWindow();
   });
