@@ -83,6 +83,15 @@ If the file is missing, `accounts.example.json` is copied there.
 - Icons picked in the app are copied to `~/.config/mxdeck/icons/`.
 - An unreadable `accounts.json` is moved to `accounts.json.broken-<timestamp>` before starting empty, never overwritten.
 
+## Plugins
+
+| Plugin | What it does |
+| --- | --- |
+| [mxdeck-plugin-login-helper](https://github.com/knagato/mxdeck-plugin-login-helper) | Sign in to a service (Slack, …) in its own window and build the login command for its Matrix bridge (mautrix-slack, …). Tokens are shown masked and go only to the clipboard |
+
+To install one, clone it and pick its folder in プラグイン (Plugins) → プラグインを追加… (Add plugin…), then restart.
+Plugins run with mxdeck's own rights, so only add ones you trust. To write your own, see [docs/PLUGINS.md](docs/PLUGINS.md).
+
 ## How it works
 
 - One `WebContentsView` per account, each with its own Electron partition; the sidebar toggles which one is visible.

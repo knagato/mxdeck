@@ -83,6 +83,15 @@ pnpm run install-app
 - アプリから選んだアイコンは `~/.config/mxdeck/icons/` にコピーする。
 - 読めない `accounts.json` は `accounts.json.broken-<時刻>` に退避してから空で起動する（上書きで消さない）。
 
+## プラグイン
+
+| プラグイン | できること |
+| --- | --- |
+| [mxdeck-plugin-login-helper](https://github.com/knagato/mxdeck-plugin-login-helper) | サービス（Slack など）に専用のウィンドウでサインインし、その Matrix ブリッジ（mautrix-slack など）に送るログインコマンドを組み立てる。トークンは伏せて表示し、クリップボードにだけ入れる |
+
+入れるときは clone して、「プラグイン → プラグインを追加…」でそのフォルダを選び、再起動する。
+プラグインは mxdeck と同じ権限で動くので、信頼できるものだけを入れる。自分で書くときは [docs/PLUGINS.md](docs/PLUGINS.md)。
+
 ## 仕組み
 
 - アカウントごとに Electron の partition を分けた `WebContentsView` を作り、サイドバーで表示を切り替える。
