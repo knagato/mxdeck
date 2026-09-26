@@ -19,7 +19,18 @@ exports.activate = (ctx) => {
     setTimeout(() => panel.send("pushed", "hi"), 100);
     return "pong";
   });
-  ctx.panel.handle("got-push", (v) => record("panel-push", { v }));
+  ctx.panel.handle("got-push", (v) => {
+    record("panel-push", { v });
+    // Esc でパネルが閉じる（プラグインが何もしなくても）
+    panel.window.once("closed", () => record("panel-closed", {}));
+    // 出ているシートを閉じる経路を試したいので、出るのを待つ（遅くとも 1 秒で出る）
+    const waitShown = setInterval(() => {
+      if (!panel.window.isVisible()) return;
+      clearInterval(waitShown);
+      record("panel-shown", {});
+      panel.window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+    }, 100);
+  });
 
   ctx.menu.add({ label: "Fixture", click: () => {} });
 

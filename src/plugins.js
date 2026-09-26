@@ -185,6 +185,14 @@ function openPanel(plugin, { file, width = 420, height = 520, resizable = false 
     return { action: "deny" };
   });
   w.webContents.on("will-navigate", (e) => e.preventDefault());
+  // シートには閉じるボタンが無い。プラグインの作りによらず、Esc と ⌘W で必ず閉じられるようにする
+  w.webContents.on("before-input-event", (e, input) => {
+    if (input.type !== "keyDown") return;
+    if (input.key === "Escape" || ((input.meta || input.control) && input.key.toLowerCase() === "w")) {
+      e.preventDefault();
+      w.close();
+    }
+  });
   w.loadFile(path.resolve(plugin.dir, file));
   w.once("ready-to-show", () => w.show());
   return {

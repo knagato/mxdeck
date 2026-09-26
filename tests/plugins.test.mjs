@@ -53,7 +53,6 @@ fs.writeFileSync(
         path: path.join(root, "tests/fixture-plugin"),
         config: { out, widgetOrigin: originOf(widget), siteUrl: `${originOf(site)}/` },
       },
-      { path: path.join(tmp, "missing-plugin") },
     ],
   }),
 );
@@ -72,7 +71,7 @@ const child = spawn(electron, [root, "--remote-debugging-port=0"], {
 
 const read = () =>
   fs.existsSync(out) ? fs.readFileSync(out, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : [];
-const want = ["frame-hello", "frame-acked", "panel-ping", "panel-push", "site"];
+const want = ["frame-hello", "frame-acked", "panel-ping", "panel-push", "panel-shown", "panel-closed", "site"];
 
 async function pageTitles() {
   const portFile = path.join(tmp, "ud", "DevToolsActivePort");
@@ -112,6 +111,7 @@ try {
   assert.equal(byKind("panel-ping")[0].x, 42);
   assert.equal(byKind("panel-ping")[0].active.id, "a");
   assert.equal(byKind("panel-push")[0].v, "hi");
+  assert.equal(byKind("panel-closed").length, 1, "Esc でパネルが閉じていない");
 
   // サイト: HttpOnly の Cookie と localStorage が読め、アカウントの保存領域には入らない
   const s = byKind("site")[0];
@@ -122,7 +122,13 @@ try {
 
   console.log("ok: frames / panel / sites / origin check");
 } finally {
+  // 終わるのを待ってから消す（書き込み中のプロファイルを消すと ENOTEMPTY で、テストの結果が隠れる）
+  const exited = new Promise((r) => child.once("exit", r));
   child.kill("SIGKILL");
-  for (const s of [widget, site, account]) s.close();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  await exited;
+  for (const s of [widget, site, account]) {
+    s.close();
+    s.closeAllConnections();
+  }
+  fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
