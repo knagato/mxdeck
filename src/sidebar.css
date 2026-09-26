@@ -10,11 +10,22 @@
     --active: #ffffff;
   }
 }
+/* 表示中のページの色に塗ったときは、その明るさに合わせる（sidebar.js） */
+:root.light {
+  color-scheme: light;
+  --active: #1b1d22;
+}
+:root.dark {
+  color-scheme: dark;
+  --active: #ffffff;
+}
 html,
 body {
   margin: 0;
   height: 100%;
   background: var(--bg);
+  /* ページと同じ色になるので、右端に細い区切り線 */
+  box-shadow: inset -1px 0 color-mix(in srgb, var(--active) 12%, var(--bg));
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
   user-select: none;
   overflow: hidden;

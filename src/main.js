@@ -40,6 +40,7 @@ let sidebar;
 let accounts = [];
 const views = new Map(); // id -> WebContentsView
 const badges = new Map(); // id -> { title, favicon }
+const edgeColors = new Map(); // id -> [r, g, b]（ページ左端の背景色。サイドバーをこの色に塗る）
 let activeId;
 let editor; // { win, targetId }（targetId が無ければ新規追加）
 
@@ -192,6 +193,7 @@ function destroyAccountView(id) {
   view.webContents.close();
   views.delete(id);
   badges.delete(id);
+  edgeColors.delete(id);
 }
 
 function buildContextMenu(wc, params) {
@@ -245,6 +247,11 @@ function activate(id) {
   }
   updateWindowTitle();
   sidebar.webContents.send("active", activeId);
+  pushEdgeColor();
+}
+
+function pushEdgeColor() {
+  sidebar.webContents.send("edge", edgeColors.get(activeId) ?? null);
 }
 
 function activeWebContents() {
@@ -583,17 +590,30 @@ onSidebar("account-menu", (id) => {
     { label: "削除…", click: () => removeAccount(id) },
   ]).popup({ window: win });
 });
+// アカウントのビューの最上位フレームから来た IPC なら、そのアカウントの id
+function accountIdOf(e) {
+  if (!e.senderFrame || e.senderFrame.parent) return undefined;
+  for (const [id, v] of views) if (v.webContents === e.sender) return id;
+  return undefined;
+}
+
 // 通知がクリックされたら（preload-account.js が知らせてくる）、そのアカウントへ切り替える
 ipcMain.on("focus-me", (e) => {
-  if (!e.senderFrame || e.senderFrame.parent) return;
-  for (const [id, v] of views) {
-    if (v.webContents === e.sender) {
-      if (win.isMinimized()) win.restore();
-      win.show();
-      win.focus();
-      activate(id);
-    }
-  }
+  const id = accountIdOf(e);
+  if (!id) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  activate(id);
+});
+// ページ左端の背景色（preload-account.js が知らせてくる）。外部のページから来る値なので rgb の数値だけ取り出す
+ipcMain.on("edge-color", (e, color) => {
+  const id = accountIdOf(e);
+  if (!id) return;
+  const m = typeof color === "string" && color.match(/^rgb\((\d+), (\d+), (\d+)\)$/);
+  if (m) edgeColors.set(id, m.slice(1).map((n) => Math.min(255, Number(n))));
+  else edgeColors.delete(id);
+  if (id === activeId) pushEdgeColor();
 });
 
 // 保存先を固定名にする。開発起動（pnpm start）の既定は package.json の name、.app は productName で

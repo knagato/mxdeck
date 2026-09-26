@@ -68,6 +68,16 @@ window.shell.on("badges", (badges) => {
   renderBadges();
 });
 
+// 表示中のページの左端と同じ色に塗る（届かないうちは OS の外観に合わせた既定色）
+window.shell.on("edge", (rgb) => {
+  const root = document.documentElement;
+  const dark = rgb ? 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2] < 128 : undefined;
+  if (rgb) root.style.setProperty("--bg", `rgb(${rgb.join(", ")})`);
+  else root.style.removeProperty("--bg");
+  root.classList.toggle("dark", dark === true);
+  root.classList.toggle("light", dark === false);
+});
+
 document.getElementById("add").addEventListener("click", () => window.shell.addAccount());
 
 // ドラッグで並べ替え。ドラッグ中は DOM 上で入れ替えて見せ、離したときに順番を送る
