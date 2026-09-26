@@ -34,7 +34,7 @@
     "electron-builder": "^26.15.3"
   },
   "build": {
-    "appId": "jp.knagato.mxdeck",
+    "appId": "com.knatrix.mxdeck",
     "productName": "mxdeck",
     "copyright": "Copyright © 2026 knagato",
     "files": [
