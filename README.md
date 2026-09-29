@@ -27,7 +27,7 @@ The UI is Japanese only for now.
 
 ## Install
 
-### Notarized app
+### macOS
 
 Download the dmg from [Releases](https://github.com/knagato/mxdeck/releases) (`arm64` for Apple Silicon,
 `x64` for Intel) and move it to Applications. It is signed with a Developer ID and notarized by Apple.

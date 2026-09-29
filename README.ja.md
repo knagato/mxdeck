@@ -27,7 +27,7 @@ UI は今のところ日本語のみ。
 
 ## インストール
 
-### 公証済みのアプリ
+### macOS
 
 [Releases](https://github.com/knagato/mxdeck/releases) から dmg（Apple Silicon は `arm64`、Intel は `x64`）を落として
 Applications へ入れる。Developer ID で署名し、Apple の公証を通してある。
