@@ -9,12 +9,13 @@ const ACCOUNTS_FILE = process.env.MXDECK_ACCOUNTS || path.join(CONFIG_DIR, "acco
 const ICON_DIR = path.join(CONFIG_DIR, "icons");
 
 function expandHome(p) {
-  return p && p.startsWith("~/") ? path.join(os.homedir(), p.slice(2)) : p;
+  return p && /^~[\\/]/.test(p) ? path.join(os.homedir(), p.slice(2)) : p;
 }
 
+// Windows でも "~/…" と / 区切りで書く（JSON で \\ をエスケープせずに済む）
 function contractHome(p) {
   const home = os.homedir() + path.sep;
-  return p.startsWith(home) ? "~/" + p.slice(home.length) : p;
+  return p.startsWith(home) ? "~/" + p.slice(home.length).split(path.sep).join("/") : p;
 }
 
 function validate(list) {

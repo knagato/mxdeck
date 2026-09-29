@@ -5,8 +5,9 @@ contextBridge.exposeInMainWorld("shell", {
   addAccount: () => ipcRenderer.send("add-account"),
   accountMenu: (id) => ipcRenderer.send("account-menu", id),
   reorder: (ids) => ipcRenderer.send("reorder", ids),
+  taskbarBadge: (dataUrl) => ipcRenderer.send("taskbar-badge", dataUrl),
   on: (channel, fn) => {
-    if (!["accounts", "active", "badges", "edge"].includes(channel)) return;
+    if (!["accounts", "active", "badges", "edge", "taskbar-badge"].includes(channel)) return;
     ipcRenderer.on(channel, (_e, payload) => fn(payload));
   },
 });

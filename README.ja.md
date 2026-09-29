@@ -2,7 +2,7 @@
 
 [English](README.md) | 日本語
 
-複数の Matrix アカウントを1つのウィンドウで切り替える macOS 用デスクトップシェル。
+複数の Matrix アカウントを1つのウィンドウで切り替える macOS・Windows 用デスクトップシェル。
 左端のサイドバーでアカウントを選ぶと、そのアカウントの Matrix Web クライアント（Element Web・Cinny など）が右側に出る。
 
 ![mxdeck](docs/screenshot.jpg)
@@ -18,9 +18,9 @@ Element Web の内部（`MatrixClientPeg` などのシングルトン）をマ�
 - アカウントごとに Cookie・localStorage・IndexedDB（暗号ストア含む）・Service Worker が独立
 - ホストされた Web クライアントをそのまま読む。自前ホストの Element Web なら、そのサーバーの config・テーマ・モジュールが効く
 - 裏のアカウントも止めないので、同期と通知が続く。通知をクリックするとそのアカウントへ切り替わる
-- 未読バッジ（サイドバーと Dock）。Element はタイトル、Cinny は favicon から拾う
+- 未読バッジ（サイドバーと Dock / タスクバー）。Element はタイトル、Cinny は favicon から拾う
 - アプリ上でアカウントの追加・編集・削除・並べ替え（`accounts.json` に書き戻る）
-- ⌘1〜⌘9 で切り替え、アカウントごとのメモリ使用量の表示
+- ⌘1〜⌘9（Windows は Ctrl+1〜9）で切り替え、アカウントごとのメモリ使用量の表示
 - プラグイン: メニュー項目・パネル・専用の保存領域を持つサインイン用ウィンドウ・クライアント内のウィジェットとのやりとりを足せる（[docs/PLUGINS.md](docs/PLUGINS.md)）
 
 UI は今のところ日本語のみ。
@@ -31,6 +31,13 @@ UI は今のところ日本語のみ。
 
 [Releases](https://github.com/knagato/mxdeck/releases) から dmg（Apple Silicon は `arm64`、Intel は `x64`）を落として
 Applications へ入れる。Developer ID で署名し、Apple の公証を通してある。
+
+### Windows
+
+[Releases](https://github.com/knagato/mxdeck/releases) から `mxdeck-<版>-x64-win-setup.exe`
+（Snapdragon などの ARM 機は `arm64`）を落として実行する。自分のユーザーにだけ入る（管理者権限は要らない）。
+コード署名はしていないので、初回は SmartScreen の「Windows によって PC が保護されました」が出る。
+「詳細情報 →実行」で進める。
 
 ### ソースから
 
@@ -49,10 +56,13 @@ pnpm run install-app
 起動中の .app は先に終了しておく。保存先は `~/Library/Application Support/mxdeck` に固定してあるので、
 `pnpm start` と .app でログイン状態を共有する（同時には起動しない）。
 
+Windows 用のインストーラ（x64・arm64）は `pnpm run dist:win` で `dist/` に作る。Mac 上でも作れる。
+
 ## 使い方
 
 アカウントは `~/.config/mxdeck/accounts.json`（`MXDECK_ACCOUNTS` で変更可）。
-無ければ `accounts.example.json` をコピーして作る。
+無ければ `accounts.example.json` をコピーして作る。Windows では `%USERPROFILE%\.config\mxdeck\accounts.json`。
+パスは Windows でも `~/…` と `/` 区切りで書ける。
 
 ```json
 {
@@ -66,6 +76,7 @@ pnpm run install-app
 - `id` は partition 名（`persist:acct-<id>`）になる。**変えると別の保存領域になり、ログインし直し**になる。
 - `icon` が無ければ `name` の1文字目を `color` の丸で出す。
 - ⌘1〜⌘9 でアカウント切り替え、⌘R は表示中のアカウントだけ再読み込み、⌥⌘I で開発者ツール。
+  Windows では ⌘ を Ctrl、⌥ を Alt に読み替える（Ctrl+1〜9、Ctrl+R、Ctrl+Alt+I）。
 - 「表示 → メモリ使用量…」でアカウントごとのメモリ（working set、iframe の別プロセスも合算）と Electron 本体側の内訳を出す。
 
 ### アプリ上での管理
@@ -112,7 +123,8 @@ pnpm run install-app
   SSO などで別サイトへ移った画面には出さない。
 - アカウントのビューは `contextIsolation` + `sandbox`。ページに公開しているのは「通知がクリックされた」を伝える関数だけ。
   サイドバーや編集シート向けの IPC は送り元を確かめ、アカウントのビューからは叩けない。
-- ログイン状態・暗号鍵は各クライアントが partition 内（`~/Library/Application Support/mxdeck/Partitions/`）に保存する。
+- ログイン状態・暗号鍵は各クライアントが partition 内（`~/Library/Application Support/mxdeck/Partitions/`、
+  Windows は `%APPDATA%\mxdeck\Partitions\`）に保存する。
   ブラウザ版と同じで、Element Desktop のようなキーチェーンでの保護は無い。
 - プラグインは mxdeck と同じ権限で動く。読み込むのは `plugins.json` に書かれたフォルダだけで、メニューから追加するときは確認を出す。
   フレームからのメッセージは、アカウントのビューの、プラグインが宣言したオリジンからのものだけを通す（[docs/PLUGINS.md](docs/PLUGINS.md#frames)）。
@@ -125,6 +137,8 @@ pnpm run install-app
   UA からは `Electron/` を外してあるので、埋め込みブラウザとして弾かれることは避けている。
 - 未読はタイトル・favicon の形式に依存する。クライアントの版で形式が変わると拾えなくなる。
 - 自動更新は無い。
+- Windows 版はコード署名をしていない（SmartScreen の確認が出る）。ウィンドウは普通の枠とメニューバーのままで、
+  サイドバーの色はページに合わせるがタイトルバーは OS の色になる。
 - プロセスを強制終了すると、次の起動で Element が「別のウィンドウで開いています」と出ることがある
   （Element Web のセッションロックが残るため）。他に起動していなければ「続行」してよい。
 
@@ -155,6 +169,13 @@ gh release create v<version> dist/*.dmg dist/*.zip --generate-notes
 
 `scripts/release.sh` は、公証の認証情報と Developer ID 証明書があるかを先に確かめ、ビルド後に
 `codesign` / `spctl` / `stapler` で検証する（electron-builder は認証情報が無いと警告だけで公証を飛ばすため）。
+
+Windows 用のインストーラは `release.sh` の後に作って一緒に上げる（`release.sh` は最初に `dist/` を消すので順番に注意）:
+
+```bash
+pnpm run dist:win
+gh release create v<version> dist/*.dmg dist/*.zip dist/*-x64-win-setup.exe dist/*-arm64-win-setup.exe --generate-notes
+```
 
 ## ライセンス
 

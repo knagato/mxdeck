@@ -80,7 +80,7 @@ window.mxdeck.on("progress", (p) => …);              // panel.send("progress",
 window.mxdeck.close();
 ```
 
-A panel is a sheet without a title bar. mxdeck closes it on Esc and ⌘W whatever the page does,
+A panel is a sheet without a title bar. mxdeck closes it on Esc and ⌘W (Ctrl+W on Windows) whatever the page does,
 but give it a visible close button too — people do not guess the shortcut.
 
 Keep secrets in the main process. If the panel only needs to show a value masked and copy it,

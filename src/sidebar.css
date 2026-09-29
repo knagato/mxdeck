@@ -1,5 +1,7 @@
 :root {
   color-scheme: light dark;
+  /* サイドバーの上の余白。macOS は信号機ボタンの下まで（ウィンドウのドラッグ領域にもなる） */
+  --top: 8px;
   --bg: #e9ecef;
   --active: #1b1d22;
   --badge: #e0245e;
@@ -26,13 +28,17 @@ body {
   background: var(--bg);
   /* ページと同じ色になるので、右端に細い区切り線 */
   box-shadow: inset -1px 0 color-mix(in srgb, var(--active) 12%, var(--bg));
-  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif;
   user-select: none;
   overflow: hidden;
 }
-/* 信号機ボタンの下まではウィンドウのドラッグ領域 */
+:root.mac {
+  --top: 44px;
+}
 .drag {
-  height: 44px;
+  height: var(--top);
+}
+:root.mac .drag {
   -webkit-app-region: drag;
 }
 nav {
@@ -42,7 +48,7 @@ nav {
   gap: 12px;
   padding: 6px 0 4px;
   /* 数が多いときは縦にスクロール（+ ボタンの分は残す） */
-  max-height: calc(100vh - 44px - 76px);
+  max-height: calc(100vh - var(--top) - 76px);
   overflow-y: auto;
   scrollbar-width: none;
 }

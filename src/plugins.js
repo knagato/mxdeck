@@ -179,6 +179,7 @@ function openPanel(plugin, { file, width = 420, height = 520, resizable = false 
     modal: true,
     width,
     height,
+    useContentSize: true,
     resizable,
     minimizable: false,
     maximizable: false,
@@ -189,6 +190,7 @@ function openPanel(plugin, { file, width = 420, height = 520, resizable = false 
       sandbox: true,
     },
   });
+  w.removeMenu(); // Windows では子ウィンドウにもアプリのメニューバーが付くので外す
   const wcId = w.webContents.id;
   panelOwners.set(wcId, plugin);
   w.on("closed", () => panelOwners.delete(wcId));
@@ -198,7 +200,7 @@ function openPanel(plugin, { file, width = 420, height = 520, resizable = false 
     return { action: "deny" };
   });
   w.webContents.on("will-navigate", (e) => e.preventDefault());
-  // シートには閉じるボタンが無い。プラグインの作りによらず、Esc と ⌘W で必ず閉じられるようにする
+  // シートには閉じるボタンが無い。プラグインの作りによらず、Esc と ⌘W（Windows は Ctrl+W）で必ず閉じられるようにする
   w.webContents.on("before-input-event", (e, input) => {
     if (input.type !== "keyDown") return;
     if (input.key === "Escape" || ((input.meta || input.control) && input.key.toLowerCase() === "w")) {
@@ -261,6 +263,8 @@ function siteWindowOptions(ses, show) {
 
 function wireSiteWindow(plugin, w, ses, partition) {
   track(plugin, w);
+  // Windows ではアプリのメニューバーが付き、そのショートカット（Ctrl+R 等）がメインウィンドウに効いてしまう
+  w.removeMenu();
   const wc = w.webContents;
   // ウィンドウが増えると、どれが何か分からなくなる。新しいタブとして開くもの（target=_blank、
   // ワークスペースを開く等）は、このウィンドウの中で開く。サイズ指定つきのポップアップ（Google 等の
@@ -466,6 +470,7 @@ function openInstaller() {
     modal: true,
     width: 460,
     height: 250,
+    useContentSize: true,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -476,6 +481,7 @@ function openInstaller() {
       sandbox: true,
     },
   });
+  installer.removeMenu();
   installer.loadFile(path.join(__dirname, "plugin-install.html"));
   installer.once("ready-to-show", () => installer.show());
 }

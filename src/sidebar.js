@@ -3,9 +3,16 @@ const buttons = new Map();
 let lastBadges = {};
 let activeId;
 
+// macOS だけ、タイトルバーを隠して信号機ボタンをサイドバーの上に置いている（main.js）
+const isMac = new URLSearchParams(location.search).get("platform") === "darwin";
+document.documentElement.classList.toggle("mac", isMac);
+const mod = isMac ? "⌘" : "Ctrl+";
+
 function shortcutLabel(i) {
-  return i < 9 ? `（⌘${i + 1}）` : "";
+  return i < 9 ? `（${mod}${i + 1}）` : "";
 }
+
+document.getElementById("add").title = `アカウントを追加（${isMac ? "⇧⌘N" : "Ctrl+Shift+N"}）`;
 
 window.shell.on("accounts", (accounts) => {
   nav.replaceChildren();
@@ -76,6 +83,31 @@ window.shell.on("edge", (rgb) => {
   else root.style.removeProperty("--bg");
   root.classList.toggle("dark", dark === true);
   root.classList.toggle("light", dark === false);
+});
+
+// Windows のタスクバーのボタンに重ねる未読バッジ。重ねられるのは画像だけなので、ここで描いて main へ返す
+window.shell.on("taskbar-badge", (label) => {
+  if (!label) return window.shell.taskbarBadge(null);
+  const size = 32;
+  const c = Object.assign(document.createElement("canvas"), { width: size, height: size });
+  const g = c.getContext("2d");
+  g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--badge");
+  g.beginPath();
+  g.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "#fff";
+  if (label === "•") {
+    g.beginPath();
+    g.arc(size / 2, size / 2, size / 6, 0, Math.PI * 2);
+    g.fill();
+  } else {
+    const text = Number(label) > 99 ? "99+" : label;
+    g.font = `700 ${text.length > 2 ? 13 : text.length > 1 ? 17 : 21}px "Segoe UI", sans-serif`;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(text, size / 2, size / 2 + 1);
+  }
+  window.shell.taskbarBadge(c.toDataURL("image/png"));
 });
 
 document.getElementById("add").addEventListener("click", () => window.shell.addAccount());

@@ -1,6 +1,7 @@
 // GitHub のリポジトリからプラグインを取ってくる。git は使わず、アーカイブ（tar.gz）を落として展開する
 // （git の無い Mac でも動くように）。electron に依存しないので node:test で確かめられる。
 const { spawn } = require("node:child_process");
+const path = require("node:path");
 const zlib = require("node:zlib");
 
 const BASE = process.env.MXDECK_GITHUB || "https://github.com";
@@ -77,10 +78,16 @@ async function download(spec, dest, { fetch = globalThis.fetch, base = BASE } = 
   return { commit: commitOf(tar) };
 }
 
-// macOS の tar（bsdtar）は既定で、絶対パスや .. を含むもの・シンボリックリンク越しの書き込みを展開しない
+// macOS の tar も Windows 10 以降に入っている tar も bsdtar で、
+// 既定で絶対パスや .. を含むもの・シンボリックリンク越しの書き込みを展開しない
+const TAR =
+  process.platform === "win32"
+    ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe")
+    : "/usr/bin/tar";
+
 function untar(tar, dest) {
   return new Promise((resolve, reject) => {
-    const p = spawn("/usr/bin/tar", ["-xf", "-", "-C", dest, "--strip-components", "1"], {
+    const p = spawn(TAR, ["-xf", "-", "-C", dest, "--strip-components", "1"], {
       stdio: ["pipe", "ignore", "pipe"],
     });
     let stderr = "";

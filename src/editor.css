@@ -25,7 +25,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 13px -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  font: 13px -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif;
 }
 form {
   display: flex;

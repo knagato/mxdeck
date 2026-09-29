@@ -2,7 +2,7 @@
 
 English | [日本語](README.ja.md)
 
-A macOS desktop shell that keeps several Matrix accounts in one window.
+A desktop shell for macOS and Windows that keeps several Matrix accounts in one window.
 Pick an account in the left sidebar and its Matrix web client (Element Web, Cinny, …) appears on the right.
 
 ![mxdeck](docs/screenshot.jpg)
@@ -18,9 +18,9 @@ and friends are singletons), so mxdeck does it from the outside: one isolated br
 - Cookies, localStorage, IndexedDB (including the crypto store) and service workers are isolated per account
 - Loads hosted web clients as they are — a self-hosted Element Web keeps its own config, theme and modules
 - Background accounts keep running, so sync and notifications continue; clicking a notification switches to that account
-- Unread badges in the sidebar and the Dock (from the page title for Element, from the favicon for Cinny)
+- Unread badges in the sidebar and the Dock / taskbar (from the page title for Element, from the favicon for Cinny)
 - Add, edit, remove and reorder accounts inside the app (written back to `accounts.json`)
-- ⌘1–⌘9 to switch accounts, and a per-account memory usage view
+- ⌘1–⌘9 (Ctrl+1–9 on Windows) to switch accounts, and a per-account memory usage view
 - Plugins: add menu items, panels, sign-in windows with their own storage, and code that talks to widgets inside the clients ([docs/PLUGINS.md](docs/PLUGINS.md))
 
 The UI is Japanese only for now.
@@ -31,6 +31,13 @@ The UI is Japanese only for now.
 
 Download the dmg from [Releases](https://github.com/knagato/mxdeck/releases) (`arm64` for Apple Silicon,
 `x64` for Intel) and move it to Applications. It is signed with a Developer ID and notarized by Apple.
+
+### Windows
+
+Download `mxdeck-<version>-x64-win-setup.exe` from [Releases](https://github.com/knagato/mxdeck/releases)
+(`arm64` for ARM machines such as Snapdragon) and run it. It installs for your user only; no admin rights needed.
+The installer is not code-signed, so SmartScreen shows "Windows protected your PC" the first time —
+choose "More info → Run anyway".
 
 ### From source
 
@@ -49,10 +56,13 @@ pnpm run install-app
 Quit the running app first. Data lives in `~/Library/Application Support/mxdeck` for both `pnpm start`
 and the .app, so they share login state (don't run both at once).
 
+`pnpm run dist:win` builds the Windows installers (x64 and arm64) into `dist/`. This works on a Mac too.
+
 ## Usage
 
 Accounts live in `~/.config/mxdeck/accounts.json` (override with `MXDECK_ACCOUNTS`).
-If the file is missing, `accounts.example.json` is copied there.
+If the file is missing, `accounts.example.json` is copied there. On Windows this is `%USERPROFILE%\.config\mxdeck\accounts.json`;
+paths can still be written as `~/…` with `/`.
 
 ```json
 {
@@ -66,6 +76,7 @@ If the file is missing, `accounts.example.json` is copied there.
 - `id` becomes the partition name (`persist:acct-<id>`). **Changing it means a new, empty storage — you will have to log in again.**
 - Without `icon`, the first letter of `name` is shown on a `color` tile.
 - ⌘1–⌘9 switch accounts, ⌘R reloads only the visible account, ⌥⌘I opens developer tools.
+  On Windows read ⌘ as Ctrl and ⌥ as Alt (Ctrl+1–9, Ctrl+R, Ctrl+Alt+I).
 - View → メモリ使用量… (Memory usage) shows memory per account (working set, including cross-origin iframe processes) and for Electron itself.
 
 ### Managing accounts in the app
@@ -114,8 +125,8 @@ Plugins run with mxdeck's own rights, so only add ones you trust. To write your 
   account's own origin**. Pages reached through SSO or other navigation get nothing.
 - Account views run with `contextIsolation` and `sandbox`. The only thing exposed to the page is a function that
   reports a notification click. IPC meant for the sidebar or the editor sheet checks its sender, so account views can't use it.
-- Login state and keys are stored by each client inside its partition (`~/Library/Application Support/mxdeck/Partitions/`),
-  as in a browser. There is no keychain protection like Element Desktop's.
+- Login state and keys are stored by each client inside its partition (`~/Library/Application Support/mxdeck/Partitions/`,
+  `%APPDATA%\mxdeck\Partitions\` on Windows), as in a browser. There is no keychain protection like Element Desktop's.
 - Plugins run with mxdeck's own rights. Only folders listed in `plugins.json` are loaded, and adding one from the menu asks first.
   Messages from frames reach a plugin only from an account view and from the origins it declared ([docs/PLUGINS.md](docs/PLUGINS.md#frames)).
 
@@ -127,6 +138,8 @@ Plugins run with mxdeck's own rights, so only add ones you trust. To write your 
   `Electron/` is removed from the user agent so identity providers don't reject the login as an embedded browser.
 - Unread badges depend on the title / favicon format and break if a client changes it.
 - No auto-update.
+- The Windows build is not code-signed (SmartScreen asks first). Its window keeps the normal frame and menu bar;
+  the sidebar follows the page's color, but the title bar follows the OS.
 - After a force quit, Element may say it "is open in another window" on the next start (Element Web's session lock
   is left behind). If nothing else is running, it is safe to continue.
 
@@ -158,6 +171,13 @@ gh release create v<version> dist/*.dmg dist/*.zip --generate-notes
 `scripts/release.sh` checks for the notarization credentials and a Developer ID certificate first, and verifies
 the result with `codesign`, `spctl` and `stapler` afterwards — electron-builder only warns and skips notarization
 when credentials are missing.
+
+Build the Windows installers after `release.sh` (it starts by deleting `dist/`) and upload them together:
+
+```bash
+pnpm run dist:win
+gh release create v<version> dist/*.dmg dist/*.zip dist/*-x64-win-setup.exe dist/*-arm64-win-setup.exe --generate-notes
+```
 
 ## License
 

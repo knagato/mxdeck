@@ -22,6 +22,7 @@ const store = require("./accounts");
 const plugins = require("./plugins");
 
 const SIDEBAR_WIDTH = 84;
+const isMac = process.platform === "darwin";
 const STATE_FILE = () => path.join(app.getPath("userData"), "state.json");
 const partitionOf = (id) => `persist:acct-${id}`;
 
@@ -113,12 +114,19 @@ function mergedBadge({ title, favicon }) {
   };
 }
 
+let appBadge = "";
+
 function pushBadges() {
   const merged = Object.fromEntries([...badges].map(([id, b]) => [id, mergedBadge(b)]));
   sidebar.webContents.send("badges", merged);
   const all = Object.values(merged);
   const total = all.reduce((s, b) => s + b.count, 0);
-  app.dock?.setBadge(total > 0 ? String(total) : all.some((b) => b.mention) ? "!" : all.some((b) => b.unread) ? "•" : "");
+  const label = total > 0 ? String(total) : all.some((b) => b.mention) ? "!" : all.some((b) => b.unread) ? "•" : "";
+  if (label === appBadge) return;
+  appBadge = label;
+  // macOS は Dock に文字で出せる。Windows のタスクバーは画像しか重ねられないので、サイドバーに描いてもらう
+  if (isMac) app.dock?.setBadge(label);
+  else if (process.platform === "win32") sidebar.webContents.send("taskbar-badge", label);
 }
 
 // ---------------------------------------------------------------------------
@@ -344,6 +352,7 @@ function openEditor(targetId) {
     modal: true,
     width: 460,
     height: 390,
+    useContentSize: true,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -354,6 +363,7 @@ function openEditor(targetId) {
       sandbox: true,
     },
   });
+  w.removeMenu(); // Windows では子ウィンドウにもアプリのメニューバーが付くので外す
   editor = { win: w, targetId };
   w.loadFile(path.join(__dirname, "editor.html"));
   w.once("ready-to-show", () => w.show());
@@ -375,7 +385,7 @@ handleEditor("editor:init", () => {
 handleEditor("editor:choose-icon", async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(editor.win, {
     properties: ["openFile"],
-    filters: [{ name: "画像", extensions: ["png", "jpg", "jpeg", "gif", "webp", "icns", "tiff"] }],
+    filters: [{ name: "画像", extensions: ["png", "jpg", "jpeg", "gif", "webp", "icns", "tiff", "ico", "bmp"] }],
   });
   if (canceled || !filePaths[0]) return null;
   const preview = iconDataUrl(filePaths[0]);
@@ -430,7 +440,8 @@ function buildMenu() {
     click: () => activate(a.id),
   }));
   const template = [
-    { role: "appMenu" },
+    // Windows にはアプリ名のメニューが無いので、終了はファイルメニューに置く
+    isMac ? { role: "appMenu" } : { label: "ファイル", submenu: [{ role: "quit", label: "終了" }] },
     { role: "editMenu" },
     {
       label: "表示",
@@ -524,7 +535,9 @@ function showMemoryReport() {
   dialog.showMessageBox(win, {
     type: "info",
     message: `メモリ使用量 合計 ${mb(totalKb)}（${processes} プロセス）`,
-    detail: `${lines.join("\n")}\n\n各プロセスの working set（共有メモリを含む）の合計。アクティビティモニタの「メモリ」とは数え方が違う。`,
+    detail:
+      `${lines.join("\n")}\n\n各プロセスの working set（共有メモリを含む）の合計。` +
+      `${isMac ? "アクティビティモニタ" : "タスクマネージャー"}の「メモリ」とは数え方が違う。`,
   });
 }
 
@@ -546,11 +559,16 @@ function createWindow() {
     y: state.bounds?.y,
     minWidth: 640,
     minHeight: 480,
-    titleBarStyle: "hiddenInset",
-    // 信号機ボタンがサイドバーの幅に収まる位置（macOS 26 では3つで幅 60pt ほど）。
-    // はみ出すとアカウントのページ左上（Element のスペース一覧など）に被る
-    trafficLightPosition: { x: 12, y: 18 },
+    // macOS はタイトルバーを隠し、信号機ボタンをサイドバーの上に置く。
+    // Windows は普通の枠とメニューバーのまま（ボタンを重ねると、ページの右上にあるボタンに被る）
+    ...(isMac && {
+      titleBarStyle: "hiddenInset",
+      // 信号機ボタンがサイドバーの幅に収まる位置（macOS 26 では3つで幅 60pt ほど）。
+      // はみ出すとアカウントのページ左上（Element のスペース一覧など）に被る
+      trafficLightPosition: { x: 12, y: 18 },
+    }),
   });
+  if (state.maximized) win.maximize();
 
   sidebar = new WebContentsView({
     webPreferences: {
@@ -560,7 +578,7 @@ function createWindow() {
     },
   });
   win.contentView.addChildView(sidebar);
-  sidebar.webContents.loadFile(path.join(__dirname, "sidebar.html"));
+  sidebar.webContents.loadFile(path.join(__dirname, "sidebar.html"), { query: { platform: process.platform } });
   sidebar.webContents.once("did-finish-load", () => {
     sendAccounts();
     activate(state.activeId);
@@ -572,7 +590,8 @@ function createWindow() {
   });
 
   win.on("resize", layout);
-  win.on("close", () => writeState({ bounds: win.getBounds() }));
+  // 最大化したまま閉じても、元の大きさを覚えておく
+  win.on("close", () => writeState({ bounds: win.getNormalBounds(), maximized: win.isMaximized() }));
   win.on("closed", () => plugins.closeAll());
   win.on("focus", () => activeWebContents()?.focus());
   layout();
@@ -581,6 +600,13 @@ function createWindow() {
 onSidebar("activate", (id) => activate(id));
 onSidebar("add-account", () => openEditor());
 onSidebar("reorder", (ids) => Array.isArray(ids) && reorderAccounts(ids));
+// タスクバーのボタンに重ねる未読バッジ（sidebar.js が描いた PNG）
+onSidebar("taskbar-badge", (dataUrl) => {
+  if (process.platform !== "win32") return;
+  const ok = typeof dataUrl === "string" && dataUrl.startsWith("data:image/png;base64,");
+  const img = ok ? nativeImage.createFromDataURL(dataUrl) : null;
+  win.setOverlayIcon(img && !img.isEmpty() ? img : null, img ? "未読あり" : "");
+});
 onSidebar("account-menu", (id) => {
   if (!findAccount(id)) return;
   Menu.buildFromTemplate([
@@ -620,6 +646,9 @@ ipcMain.on("edge-color", (e, color) => {
 // 変わりうるので、両方で同じ partition を共有してログインをやり直さずに済むように明示する。
 // MXDECK_USER_DATA は動作確認用（普段使いのログイン状態に触れずに別の保存先で起動する）
 app.setPath("userData", process.env.MXDECK_USER_DATA || path.join(app.getPath("appData"), "mxdeck"));
+
+// Windows の通知（トースト）はアプリの ID で束ねられる。インストーラが作るショートカットの ID に合わせる
+if (process.platform === "win32" && app.isPackaged) app.setAppUserModelId("com.knatrix.mxdeck");
 
 // Google 等の IdP は UA に "Electron/" があると埋め込みブラウザ扱いでログインを拒むことがあるので外す
 app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|mxdeck)\/\S+/g, "");
