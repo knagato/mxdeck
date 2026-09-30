@@ -83,7 +83,7 @@ paths can still be written as `~/…` with `/`.
 
 | Action | How |
 | --- | --- |
-| Add | "+" at the bottom of the sidebar, or ⇧⌘N. Enter a name, a URL and an icon (image or color) |
+| Add | "+" at the bottom of the sidebar, or ⇧⌘N. Enter a name, a URL and an icon (image, the site's own icon, or color) |
 | Edit | Right-click an icon → 編集… (Edit). Changing the URL reloads only that account |
 | Remove | Right-click an icon → 削除… (Remove). You choose whether to also delete its stored data (login, keys) |
 | Reorder | Drag the icons. ⌘1–9 follow the new order |
@@ -92,6 +92,7 @@ paths can still be written as `~/…` with `/`.
 - The `id` is generated from the name (or the host name if the name has no ASCII) when an account is added, and never changes.
 - An account removed with its data kept **gets its old storage back when you add the same URL again** — no new login.
 - Icons picked in the app are copied to `~/.config/mxdeck/icons/`.
+- サイトから取得 (Fetch from site) takes the largest icon the client publishes (`<link rel="icon">`, `apple-touch-icon`, `manifest.json`, then `/favicon.ico`). When adding, it runs by itself once you enter the URL, unless you picked an image yourself.
 - An unreadable `accounts.json` is moved to `accounts.json.broken-<timestamp>` before starting empty, never overwritten.
 
 ## Plugins

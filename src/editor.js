@@ -1,5 +1,7 @@
 const $ = (id) => document.getElementById(id);
-const state = { icon: null, iconPreview: null, iconChanged: false };
+// userIcon: 画像を自分で選んだ／外した（URL を入れたときの自動取得で上書きしない）
+const state = { isNew: true, icon: null, iconPreview: null, iconChanged: false, userIcon: false };
+let fetching = 0; // 最後に出したアイコン取得の番号。URL を打ち直したら古い結果は捨てる
 
 function renderPreview() {
   const preview = $("preview");
@@ -22,6 +24,7 @@ function showError(message) {
 
 (async () => {
   const { isNew, account } = await window.editor.init();
+  state.isNew = isNew;
   $("heading").textContent = isNew ? "アカウントを追加" : "アカウントを編集";
   $("save").textContent = isNew ? "追加" : "保存";
   $("name").value = account.name;
@@ -44,15 +47,39 @@ $("choose").addEventListener("click", async () => {
   const picked = await window.editor.chooseIcon();
   if (!picked) return;
   if (picked.error) return showError(picked.error);
-  Object.assign(state, { icon: picked.path, iconPreview: picked.preview, iconChanged: true });
+  Object.assign(state, { icon: picked.path, iconPreview: picked.preview, iconChanged: true, userIcon: true });
   showError();
   renderPreview();
 });
 
 $("clear").addEventListener("click", () => {
-  Object.assign(state, { icon: null, iconPreview: null, iconChanged: true });
+  Object.assign(state, { icon: null, iconPreview: null, iconChanged: true, userIcon: true });
   renderPreview();
 });
+
+// auto: 新規追加で URL を入れたときの自動取得。失敗しても何も言わず、選んだ画像も上書きしない
+async function fetchIcon({ auto = false } = {}) {
+  const url = $("url").value.trim();
+  if (!url) return auto || showError("先に URL を入れてください");
+  const req = ++fetching;
+  if (!auto) {
+    $("fetch").disabled = true;
+    $("fetch").textContent = "取得中…";
+  }
+  const got = await window.editor.fetchIcon(url);
+  if (!auto) {
+    $("fetch").disabled = false;
+    $("fetch").textContent = "サイトから取得";
+  }
+  if (req !== fetching || (auto && state.userIcon)) return;
+  if (got?.error) return auto || showError(got.error);
+  Object.assign(state, { icon: got.path, iconPreview: got.preview, iconChanged: true, userIcon: false });
+  showError();
+  renderPreview();
+}
+
+$("fetch").addEventListener("click", () => fetchIcon());
+$("url").addEventListener("change", () => state.isNew && !state.userIcon && fetchIcon({ auto: true }));
 
 $("cancel").addEventListener("click", () => window.editor.cancel());
 document.addEventListener("keydown", (e) => {

@@ -20,6 +20,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const store = require("./accounts");
 const plugins = require("./plugins");
+const siteIcon = require("./site-icon");
 
 const SIDEBAR_WIDTH = 84;
 const isMac = process.platform === "darwin";
@@ -390,6 +391,41 @@ handleEditor("editor:choose-icon", async () => {
   if (canceled || !filePaths[0]) return null;
   const preview = iconDataUrl(filePaths[0]);
   return preview ? { path: filePaths[0], preview } : { error: "この画像は読み込めませんでした" };
+});
+
+// サイトのアイコンは一時フォルダに落とし、保存したときに「画像を選ぶ」と同じ経路で icons/ へコピーする
+handleEditor("editor:fetch-icon", async (input) => {
+  let url;
+  try {
+    url = store.normalizeUrl(input);
+  } catch {
+    return { error: "URL が正しくありません（https://… の形で入れてください）" };
+  }
+  // 編集中のアカウントならその保存領域で取りに行く（ログインが要るサイトでも Cookie が付く）
+  const ses = editor.targetId ? session.fromPartition(partitionOf(editor.targetId)) : session.defaultSession;
+  const dir = path.join(app.getPath("temp"), "mxdeck-site-icon");
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  let n = 0;
+  try {
+    return await siteIcon.findIcon(url, {
+      fetch: (u, opts) => ses.fetch(u, opts),
+      accept: (buf, ext) => {
+        // ICO は PNG にしてから置く（macOS の nativeImage は ICO を読めない）
+        const ico = ext === ".ico" && siteIcon.fromIco(buf);
+        if (ico) {
+          buf = ico.png ?? nativeImage.createFromBitmap(ico.bgra, { width: ico.width, height: ico.height }).toPNG();
+          ext = ".png";
+        }
+        const p = path.join(dir, `icon-${++n}${ext}`);
+        fs.writeFileSync(p, buf);
+        const preview = iconDataUrl(p);
+        return preview && { path: p, preview };
+      },
+    });
+  } catch (err) {
+    return { error: String(err.message ?? err) };
+  }
 });
 
 handleEditor("editor:save", (data = {}) => {
