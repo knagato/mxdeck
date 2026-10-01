@@ -218,15 +218,25 @@ function destroyAccountView(id) {
 // アカウントのページが開こうとするウィンドウ。メッセージ内のリンクなどは既定ブラウザへ。
 // ただしサインインの続き（認証サーバーで本人確認のリセットを承認する、IdP のポップアップ等）をブラウザで開くと、
 // そこにはこのアカウントのログイン状態が無く、済ませても結果がアプリへ戻らない。そういうものは同じ保存領域の
-// 子ウィンドウで開く。見分け方は、サイズ指定つきのポップアップか、宛先がこのアカウントのサイトか認証サーバーか
+// 子ウィンドウで開く。見分け方は、サイズ指定つきのポップアップか、宛先が認証サーバーか。
+// このアカウントのサイトを新しいタブとして開くもの（ウェルカム画面の「サインイン」が target=_blank のクライアント
+// もある）は、アカウントのビューそのもので開く。別のウィンドウにすると同じ保存領域でクライアントが2つ動き、
+// ログインがそちらで済んでしまう（Element は「別のウィンドウで開いています」になる）
 function handleWindowOpen(id, wc) {
   wc.setWindowOpenHandler(({ url, disposition }) => {
     const origin = originOf(url);
-    const inApp =
-      /^https?:/.test(url) &&
-      (disposition === "new-window" || origin === originOf(findAccount(id)?.url) || authOriginsOf(id).has(origin));
-    if (inApp) {
-      // ポップアップはページが指定した大きさのまま。新しいタブとして開くものは普通のブラウザくらいの大きさで
+    const web = /^https?:/.test(url);
+    if (web && disposition !== "new-window" && origin === originOf(findAccount(id)?.url)) {
+      views.get(id)?.webContents.loadURL(url);
+      // 子ウィンドウから開いたときは、メインウィンドウを前に出す
+      if (wc !== views.get(id)?.webContents) {
+        win.focus();
+        activate(id);
+      }
+      return { action: "deny" };
+    }
+    if (web && (disposition === "new-window" || authOriginsOf(id).has(origin))) {
+      // ポップアップはページが指定した大きさのまま。新しいタブとして開くもの（認証サーバー）は普通のブラウザくらいで
       const size = disposition === "new-window" ? {} : { width: 1000, height: 800 };
       return { action: "allow", overrideBrowserWindowOptions: size };
     }

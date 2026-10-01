@@ -119,8 +119,10 @@ Plugins run with mxdeck's own rights, so only add ones you trust. To write your 
 - Notification clicks are caught by wrapping `Notification` in a preload script (Element calls `window.focus()`,
   Cinny only navigates in-page, so their own click behaviour can't be relied on).
 - Links with `target=_blank` open in the default browser. Windows that continue a sign-in stay in the app, in a window that shares
-  the account's storage: sized popups (an IdP's), and pages on the account's own site or on the auth server it signed in through
-  (approving a cross-signing reset with MAS, say). In the browser the login would be missing and the result would never come back.
+  the account's storage: sized popups (an IdP's), and pages on the auth server it signed in through (approving a cross-signing
+  reset with MAS, say). In the browser the login would be missing and the result would never come back.
+- A new tab on the account's own site (a custom welcome page whose "Sign in" uses `target=_blank`) opens in the account's view
+  itself, so that the client never runs twice on the same storage.
 - A client that fails to load shows why and how to fix it, instead of a blank page.
 
 ## Security
