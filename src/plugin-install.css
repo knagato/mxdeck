@@ -1,0 +1,57 @@
+h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.official {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* 1件と少し。それより多いときは一覧の中でスクロールする */
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--field);
+}
+.official li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+}
+.official li + li {
+  border-top: 1px solid var(--border);
+}
+.official .info {
+  flex: 1;
+  min-width: 0;
+}
+.official .name {
+  font-weight: 600;
+}
+.official .description {
+  margin: 2px 0;
+}
+.official small {
+  display: block;
+}
+.official button {
+  flex: none;
+}
+.official .note {
+  color: var(--muted);
+}
+section small,
+label small {
+  font-weight: 400;
+  color: var(--muted);
+}
+.row {
+  display: flex;
+  gap: 8px;
+  font-weight: 400;
+}
+.row input {
+  flex: 1;
+  min-width: 0;
+}

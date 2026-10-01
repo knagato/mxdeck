@@ -98,4 +98,56 @@ function untar(tar, dest) {
   });
 }
 
-module.exports = { parseSpec, specString, download, commitOf };
+// 公式プラグインの一覧。リポジトリの main にある src/official-plugins.json を読み、読めなければ
+// アプリに同梱した版を使う（一覧に足すだけなら、mxdeck を出し直さなくても出るように）
+const OFFICIAL_URL =
+  process.env.MXDECK_OFFICIAL_PLUGINS ||
+  "https://raw.githubusercontent.com/knagato/mxdeck/main/src/official-plugins.json";
+
+// 形の合わない項目は黙って落とす（一覧の書き損じで、シートごと出なくならないように）
+function parseOfficial(data) {
+  const list = Array.isArray(data?.plugins) ? data.plugins : [];
+  return list.flatMap((p) => {
+    let spec;
+    try {
+      spec = parseSpec(p?.repo);
+    } catch {
+      return [];
+    }
+    const name = typeof p.name === "string" ? p.name.trim() : "";
+    if (!name) return [];
+    return [
+      {
+        repo: `${spec.owner}/${spec.repo}${spec.ref ? `#${spec.ref}` : ""}`,
+        id: typeof p.id === "string" ? p.id : undefined,
+        name,
+        description: typeof p.description === "string" ? p.description : "",
+      },
+    ];
+  });
+}
+
+async function officialPlugins({ bundled, fetch = globalThis.fetch, url = OFFICIAL_URL }) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const plugins = parseOfficial(await res.json());
+    if (plugins.length) return { plugins, remote: true };
+  } catch {
+    // オフライン等。同梱の一覧で続ける
+  }
+  return { plugins: parseOfficial(bundled), remote: false };
+}
+
+// owner/repo が同じか（ref と大文字小文字は見ない）
+function sameRepo(a, b) {
+  try {
+    const x = parseSpec(a);
+    const y = parseSpec(b);
+    return `${x.owner}/${x.repo}`.toLowerCase() === `${y.owner}/${y.repo}`.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { parseSpec, specString, download, commitOf, parseOfficial, officialPlugins, sameRepo };

@@ -101,8 +101,8 @@ paths can still be written as `~/…` with `/`.
 | --- | --- |
 | [mxdeck-plugin-login-helper](https://github.com/knagato/mxdeck-plugin-login-helper) | Sign in to a service (Slack, …) in its own window and build the login command for its Matrix bridge (mautrix-slack, …). Tokens are shown masked and go only to the clipboard |
 
-To install one, choose プラグイン (Plugins) → GitHub から追加… (Add from GitHub…), enter `owner/repo`
-(e.g. `knagato/mxdeck-plugin-login-helper`), then restart. To use a local folder instead, pick it in
+To install one, choose プラグイン (Plugins) → プラグインを追加… (Add plugin…) and pick it from the list of official
+plugins, or enter any other repository as `owner/repo`, then restart. To use a local folder instead, pick it in
 フォルダから追加… (Add from folder…).
 Plugins run with mxdeck's own rights, so only add ones you trust. To write your own, see [docs/PLUGINS.md](docs/PLUGINS.md).
 

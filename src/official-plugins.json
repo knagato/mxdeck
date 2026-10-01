@@ -1,0 +1,10 @@
+{
+  "plugins": [
+    {
+      "repo": "knagato/mxdeck-plugin-login-helper",
+      "id": "login-helper",
+      "name": "Login Helper",
+      "description": "サービス（Slack など）に専用のウィンドウでサインインし、その Matrix ブリッジに送るログインコマンドを組み立てる"
+    }
+  ]
+}

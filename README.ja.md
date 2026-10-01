@@ -101,7 +101,7 @@ Windows 用のインストーラ（x64・arm64）は `pnpm run dist:win` で `di
 | --- | --- |
 | [mxdeck-plugin-login-helper](https://github.com/knagato/mxdeck-plugin-login-helper) | サービス（Slack など）に専用のウィンドウでサインインし、その Matrix ブリッジ（mautrix-slack など）に送るログインコマンドを組み立てる。トークンは伏せて表示し、クリップボードにだけ入れる |
 
-入れるときは「プラグイン → GitHub から追加…」で `owner/repo`（例: `knagato/mxdeck-plugin-login-helper`）を入れ、再起動する。
+入れるときは「プラグイン → プラグインを追加…」で公式プラグインの一覧から選ぶか、ほかのリポジトリを `owner/repo` で入れ、再起動する。
 手元のフォルダを使うなら「フォルダから追加…」で選ぶ。
 プラグインは mxdeck と同じ権限で動くので、信頼できるものだけを入れる。自分で書くときは [docs/PLUGINS.md](docs/PLUGINS.md)。
 

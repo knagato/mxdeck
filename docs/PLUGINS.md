@@ -10,7 +10,9 @@ a panel window, sign-in windows with their own storage, and frames inside the ac
 
 ## Installing
 
-プラグイン (Plugins) → GitHub から追加… (Add from GitHub…) and enter the repository, then restart.
+プラグイン (Plugins) → プラグインを追加… (Add plugin…), then pick one from the official list or enter the repository, and restart.
+The official list is [`src/official-plugins.json`](../src/official-plugins.json); mxdeck reads it from `main` on GitHub when the
+sheet opens (falling back to the copy it ships with), so a plugin added there shows up without a new release.
 It accepts `owner/repo`, `owner/repo#<branch, tag or commit>` and github.com URLs (including `/tree/<branch>`
 and `/releases/tag/<tag>`). Without a ref, the default branch is used.
 

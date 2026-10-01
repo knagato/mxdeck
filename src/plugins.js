@@ -387,8 +387,8 @@ function menuTemplate() {
     };
   });
   items.push(
+    { label: "プラグインを追加…", click: openInstaller },
     { label: "フォルダから追加…", click: addPlugin },
-    { label: "GitHub から追加…", click: openInstaller },
     { label: "有効なプラグイン", submenu: manage.length ? manage : [{ label: "（なし）", enabled: false }] },
     { label: "plugins.json を開く", click: openFile },
   );
@@ -451,8 +451,8 @@ async function addPlugin() {
 }
 
 // ---------------------------------------------------------------------------
-// GitHub から追加。リポジトリを入れるシートを出し、アーカイブを落として PLUGINS_DIR/<id> に置く。
-// 同じ id のものが PLUGINS_DIR にあれば、入れ替える（更新）
+// GitHub から追加。公式プラグインの一覧から選ぶか、リポジトリを入れるシートを出し、
+// アーカイブを落として PLUGINS_DIR/<id> に置く。同じ id のものが PLUGINS_DIR にあれば、入れ替える（更新）
 
 let installer; // シートの BrowserWindow
 
@@ -468,8 +468,8 @@ function openInstaller() {
   installer = new BrowserWindow({
     parent: host.win(),
     modal: true,
-    width: 460,
-    height: 250,
+    width: 500,
+    height: 430,
     useContentSize: true,
     resizable: false,
     minimizable: false,
@@ -497,6 +497,23 @@ ipcMain.handle("plugin-install:run", async (e, input) => {
   }
 });
 ipcMain.on("plugin-install:cancel", (e) => fromInstaller(e) && installer.close());
+
+// 公式プラグインの一覧と、それぞれ追加済みか。GitHub から入れたもの（source あり）は「更新」できる。
+// 同じ id をフォルダから入れているもの（開発中の clone 等）は、置き場所がぶつかるので追加済みとだけ出す
+ipcMain.handle("plugin-install:list", async (e) => {
+  if (!fromInstaller(e)) return { error: "forbidden" };
+  const bundled = JSON.parse(fs.readFileSync(path.join(__dirname, "official-plugins.json"), "utf8"));
+  const { plugins: list, remote } = await github.officialPlugins({ bundled, fetch: net.fetch });
+  const entries = readFile();
+  return {
+    remote,
+    plugins: list.map((p) => {
+      const entry = entries.find((x) => (x.source && github.sameRepo(x.source, p.repo)) || (p.id && entryId(x) === p.id));
+      const installed = !entry ? false : entry.source && github.sameRepo(entry.source, p.repo) ? "github" : "folder";
+      return { repo: p.repo, name: p.name, description: p.description, installed };
+    }),
+  };
+});
 
 // plugins.json の項目が指すプラグインの id（読めなければ null）
 function entryId(e) {

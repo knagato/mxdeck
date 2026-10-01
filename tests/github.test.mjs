@@ -11,7 +11,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
-const { parseSpec, specString, download } = createRequire(import.meta.url)("../src/github.js");
+const require = createRequire(import.meta.url);
+const { parseSpec, specString, download, parseOfficial, officialPlugins, sameRepo } = require("../src/github.js");
+const bundled = require("../src/official-plugins.json");
 
 test("parseSpec", () => {
   const cases = {
@@ -75,4 +77,44 @@ test("download", async (t) => {
 
   await assert.rejects(download(parseSpec("a/missing"), dest, { base }), /見つかりません/);
   await assert.rejects(download(parseSpec("a/text"), dest, { base }), /tar\.gz ではありません/);
+});
+
+test("parseOfficial", () => {
+  const list = parseOfficial({
+    plugins: [
+      { repo: "https://github.com/a/b", id: "b", name: " B ", description: "d" },
+      { repo: "a/c#v1", name: "C" },
+      { repo: "../x", name: "bad repo" },
+      { repo: "a/d" },
+      null,
+    ],
+  });
+  assert.deepEqual(list, [
+    { repo: "a/b", id: "b", name: "B", description: "d" },
+    { repo: "a/c#v1", id: undefined, name: "C", description: "" },
+  ]);
+  assert.deepEqual(parseOfficial(null), []);
+  // 同梱の一覧は、全部が読める
+  assert.equal(parseOfficial(bundled).length, bundled.plugins.length);
+});
+
+test("officialPlugins", async () => {
+  const json = (body, status = 200) => async () => new Response(JSON.stringify(body), { status });
+  const remote = { plugins: [{ repo: "a/remote", name: "R" }] };
+  const local = { plugins: [{ repo: "a/local", name: "L" }] };
+  const names = (r) => [r.remote, r.plugins.map((p) => p.name)];
+  assert.deepEqual(names(await officialPlugins({ bundled: local, fetch: json(remote) })), [true, ["R"]]);
+  // 取れない・壊れている・空なら同梱の一覧
+  assert.deepEqual(names(await officialPlugins({ bundled: local, fetch: json(remote, 404) })), [false, ["L"]]);
+  assert.deepEqual(names(await officialPlugins({ bundled: local, fetch: json({ plugins: [] }) })), [false, ["L"]]);
+  const offline = async () => {
+    throw new TypeError("fetch failed");
+  };
+  assert.deepEqual(names(await officialPlugins({ bundled: local, fetch: offline })), [false, ["L"]]);
+});
+
+test("sameRepo", () => {
+  assert.ok(sameRepo("github:Knagato/X#main", "knagato/x"));
+  assert.ok(!sameRepo("github:knagato/x", "knagato/y"));
+  assert.ok(!sameRepo(undefined, "knagato/x"));
 });
