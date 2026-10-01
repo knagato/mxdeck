@@ -40,7 +40,6 @@
     "copyright": "Copyright © 2026 knagato",
     "files": [
       "src/**",
-      "accounts.example.json",
       "package.json"
     ],
     "mac": {

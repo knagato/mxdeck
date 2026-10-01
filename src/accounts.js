@@ -29,12 +29,10 @@ function validate(list) {
   return list;
 }
 
+// 無ければ空の一覧で始める（main.js が追加の画面を開く）。見本をコピーしていたころは、
+// 存在しない element.example.com が最初に表示され、白い画面のまま止まって見えた
 function load() {
-  if (!fs.existsSync(ACCOUNTS_FILE)) {
-    fs.mkdirSync(path.dirname(ACCOUNTS_FILE), { recursive: true });
-    fs.copyFileSync(path.join(__dirname, "..", "accounts.example.json"), ACCOUNTS_FILE);
-    console.log(`accounts.json が無いので見本をコピーした: ${ACCOUNTS_FILE}`);
-  }
+  if (!fs.existsSync(ACCOUNTS_FILE)) return [];
   return validate(JSON.parse(fs.readFileSync(ACCOUNTS_FILE, "utf8")).accounts ?? []);
 }
 

@@ -61,7 +61,7 @@ and the .app, so they share login state (don't run both at once).
 ## Usage
 
 Accounts live in `~/.config/mxdeck/accounts.json` (override with `MXDECK_ACCOUNTS`).
-If the file is missing, `accounts.example.json` is copied there. On Windows this is `%USERPROFILE%\.config\mxdeck\accounts.json`;
+If the file is missing, mxdeck starts with no accounts and opens the add sheet (`accounts.example.json` shows the format). On Windows this is `%USERPROFILE%\.config\mxdeck\accounts.json`;
 paths can still be written as `~/…` with `/`.
 
 ```json
@@ -118,7 +118,10 @@ Plugins run with mxdeck's own rights, so only add ones you trust. To write your 
   - A client that matches neither simply gets no badge; everything else still works.
 - Notification clicks are caught by wrapping `Notification` in a preload script (Element calls `window.focus()`,
   Cinny only navigates in-page, so their own click behaviour can't be relied on).
-- Links with `target=_blank` open in the default browser.
+- Links with `target=_blank` open in the default browser. Windows that continue a sign-in stay in the app, in a window that shares
+  the account's storage: sized popups (an IdP's), and pages on the account's own site or on the auth server it signed in through
+  (approving a cross-signing reset with MAS, say). In the browser the login would be missing and the result would never come back.
+- A client that fails to load shows why and how to fix it, instead of a blank page.
 
 ## Security
 

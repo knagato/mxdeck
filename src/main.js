@@ -43,6 +43,9 @@ let accounts = [];
 const views = new Map(); // id -> WebContentsView
 const badges = new Map(); // id -> { title, favicon }
 const edgeColors = new Map(); // id -> [r, g, b]（ページ左端の背景色。サイドバーをこの色に塗る）
+const failedUrls = new Map(); // id -> 読み込めなかった URL（エラー画面を出している間の再読み込み先）
+const authOrigins = new Map(); // id -> Set<origin>（サインインで通った認証サーバー。state.json にも残す）
+const popups = new Set(); // アカウントのページがアプリ内に開いたウィンドウ
 let activeId;
 let editor; // { win, targetId }（targetId が無ければ新規追加）
 
@@ -173,10 +176,16 @@ function createAccountView(account) {
   );
   ses.setPermissionCheckHandler((w, permission, requestingOrigin) => allowed(w, permission, requestingOrigin));
 
-  // target=_blank のリンクは既定ブラウザへ。ログイン(OIDC)は同じビュー内の遷移なので影響しない
-  wc.setWindowOpenHandler(({ url }) => {
-    if (/^https?:|^mailto:/.test(url)) shell.openExternal(url);
-    return { action: "deny" };
+  handleWindowOpen(id, wc);
+  wc.on("did-start-navigation", (e) => e.isMainFrame && !e.isSameDocument && noteAuthOrigin(id, wc.getURL(), e.url));
+
+  // Electron は読み込めなくてもエラー画面を出さず、白いままになる。理由と直し方を出す。
+  // -3 は中断（別の遷移に置き換わった等）で失敗ではない。http(s) 以外（アプリを呼ぶスキーム等）も対象外
+  wc.on("did-fail-load", (_e, code, description, url, isMainFrame) => {
+    const account = findAccount(id);
+    if (!account || !isMainFrame || code === -3 || !/^https?:/.test(url)) return;
+    failedUrls.set(id, url);
+    wc.loadURL(errorPage(account, url, description));
   });
 
   wc.on("page-title-updated", (_e, title) => {
@@ -203,6 +212,97 @@ function destroyAccountView(id) {
   views.delete(id);
   badges.delete(id);
   edgeColors.delete(id);
+  failedUrls.delete(id);
+}
+
+// アカウントのページが開こうとするウィンドウ。メッセージ内のリンクなどは既定ブラウザへ。
+// ただしサインインの続き（認証サーバーで本人確認のリセットを承認する、IdP のポップアップ等）をブラウザで開くと、
+// そこにはこのアカウントのログイン状態が無く、済ませても結果がアプリへ戻らない。そういうものは同じ保存領域の
+// 子ウィンドウで開く。見分け方は、サイズ指定つきのポップアップか、宛先がこのアカウントのサイトか認証サーバーか
+function handleWindowOpen(id, wc) {
+  wc.setWindowOpenHandler(({ url, disposition }) => {
+    const origin = originOf(url);
+    const inApp =
+      /^https?:/.test(url) &&
+      (disposition === "new-window" || origin === originOf(findAccount(id)?.url) || authOriginsOf(id).has(origin));
+    if (inApp) {
+      // ポップアップはページが指定した大きさのまま。新しいタブとして開くものは普通のブラウザくらいの大きさで
+      const size = disposition === "new-window" ? {} : { width: 1000, height: 800 };
+      return { action: "allow", overrideBrowserWindowOptions: size };
+    }
+    if (/^https?:|^mailto:/.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
+  wc.on("did-create-window", (child) => {
+    popups.add(child);
+    child.on("closed", () => popups.delete(child));
+    child.removeMenu(); // Windows ではアプリのメニューバーが付き、Ctrl+R 等がメインウィンドウに効いてしまう
+    const cwc = child.webContents;
+    handleWindowOpen(id, cwc);
+    cwc.on("context-menu", (_e, params) => buildContextMenu(cwc, params).popup({ window: child }));
+    // どのアカウントのウィンドウかをタイトルで示す
+    cwc.on("page-title-updated", (e, title) => {
+      e.preventDefault();
+      child.setTitle(`${title} — ${findAccount(id)?.name ?? app.getName()}`);
+    });
+  });
+}
+
+function authOriginsOf(id) {
+  if (!authOrigins.has(id)) authOrigins.set(id, new Set(readState().authOrigins?.[id] ?? []));
+  return authOrigins.get(id);
+}
+
+// アカウントのサイトから別のオリジンへ移ったら、そこを認証サーバーとして覚える（OIDC の MAS、SSO の
+// ホームサーバー）。覚えるのは最初の一歩だけで、その先の IdP（Google 等）は含めない。
+// IdP のサイト（github.com 等）へのリンクまでアプリ内で開くことになるため
+function noteAuthOrigin(id, from, to) {
+  const home = originOf(findAccount(id)?.url);
+  const origin = originOf(to);
+  if (!home || originOf(from) !== home || !/^https?:/.test(to) || origin === home) return;
+  const known = authOriginsOf(id);
+  if (known.has(origin)) return;
+  known.add(origin);
+  writeState({ authOrigins: { ...readState().authOrigins, [id]: [...known] } });
+}
+
+function forgetAuthOrigins(id) {
+  authOrigins.delete(id);
+  const { [id]: _, ...rest } = readState().authOrigins ?? {};
+  writeState({ authOrigins: rest });
+}
+
+function errorPage(account, url, description) {
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  const html = `<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<title>読み込めませんでした</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 14px/1.7 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif; }
+  main { max-width: 560px; margin: 18vh auto 0; padding: 0 32px; }
+  h1 { font-size: 20px; margin: 0 0 16px; }
+  code { word-break: break-all; }
+  .muted { opacity: 0.6; }
+</style>
+<main>
+  <h1>「${esc(account.name)}」を読み込めませんでした</h1>
+  <p><code>${esc(url)}</code><br><span class="muted">${esc(description)}</span></p>
+  <p>URL が合っているか、ネットワークにつながっているかを確かめてください。</p>
+  <p>URL を直すときは、サイドバーのアイコンを右クリックして「編集…」。保存すると読み込み直します。</p>
+  <p><a href="${esc(url)}">もう一度読み込む</a>（${isMac ? "⌘R" : "Ctrl+R"}）</p>
+</main>`;
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+}
+
+// エラー画面を出しているときは、読み込めなかった URL から読み直す（reload だとエラー画面を読み直すだけ）
+function reloadAccount(id, { ignoreCache = false } = {}) {
+  const wc = views.get(id)?.webContents;
+  if (!wc) return;
+  if (wc.getURL().startsWith("data:") && failedUrls.has(id)) wc.loadURL(failedUrls.get(id));
+  else if (ignoreCache) wc.reloadIgnoringCache();
+  else wc.reload();
 }
 
 function buildContextMenu(wc, params) {
@@ -329,6 +429,7 @@ async function removeAccount(id) {
     await ses.clearStorageData();
     await ses.clearCache();
     store.removeImportedIcon(account);
+    forgetAuthOrigins(id);
   }
 }
 
@@ -482,11 +583,11 @@ function buildMenu() {
     {
       label: "表示",
       submenu: [
-        { label: "再読み込み", accelerator: "CmdOrCtrl+R", click: () => activeWebContents()?.reload() },
+        { label: "再読み込み", accelerator: "CmdOrCtrl+R", click: () => reloadAccount(activeId) },
         {
           label: "キャッシュを無視して再読み込み",
           accelerator: "Shift+CmdOrCtrl+R",
-          click: () => activeWebContents()?.reloadIgnoringCache(),
+          click: () => reloadAccount(activeId, { ignoreCache: true }),
         },
         {
           label: "開発者ツール",
@@ -628,7 +729,10 @@ function createWindow() {
   win.on("resize", layout);
   // 最大化したまま閉じても、元の大きさを覚えておく
   win.on("close", () => writeState({ bounds: win.getNormalBounds(), maximized: win.isMaximized() }));
-  win.on("closed", () => plugins.closeAll());
+  win.on("closed", () => {
+    plugins.closeAll();
+    for (const w of popups) w.close();
+  });
   win.on("focus", () => activeWebContents()?.focus());
   layout();
 }
@@ -647,7 +751,7 @@ onSidebar("account-menu", (id) => {
   if (!findAccount(id)) return;
   Menu.buildFromTemplate([
     { label: "編集…", click: () => openEditor(id) },
-    { label: "再読み込み", click: () => views.get(id)?.webContents.reload() },
+    { label: "再読み込み", click: () => reloadAccount(id) },
     { type: "separator" },
     { label: "削除…", click: () => removeAccount(id) },
   ]).popup({ window: win });

@@ -61,7 +61,7 @@ Windows 用のインストーラ（x64・arm64）は `pnpm run dist:win` で `di
 ## 使い方
 
 アカウントは `~/.config/mxdeck/accounts.json`（`MXDECK_ACCOUNTS` で変更可）。
-無ければ `accounts.example.json` をコピーして作る。Windows では `%USERPROFILE%\.config\mxdeck\accounts.json`。
+無ければ空の一覧で起動し、追加の画面を開く（書式は `accounts.example.json`）。Windows では `%USERPROFILE%\.config\mxdeck\accounts.json`。
 パスは Windows でも `~/…` と `/` 区切りで書ける。
 
 ```json
@@ -116,7 +116,10 @@ Windows 用のインストーラ（x64・arm64）は `pnpm run dist:win` で `di
   - Cinny: favicon の差し替え（緑のロゴ = メンションあり → `!`、灰のロゴ = 未読あり → 点。件数は出ない）
   - どちらにも当てはまらないクライアントはバッジが出ないだけで、他は動く。
 - 通知のクリックは preload で `Notification` を包んで拾う（Element は `window.focus()`、Cinny は画面内遷移だけで、振る舞いが違うため）。
-- `target=_blank` のリンクは既定ブラウザで開く。
+- `target=_blank` のリンクは既定ブラウザで開く。ただしサインインの続きになるウィンドウは、そのアカウントと同じ保存領域の
+  ウィンドウでアプリ内に開く: サイズ指定つきのポップアップ（IdP など）と、アカウントのサイト・サインインで通った認証サーバー
+  宛てのもの（MAS で本人確認のリセットを承認する等）。ブラウザではログイン状態が無く、済ませても結果がアプリへ戻らないため。
+- 読み込めなかったクライアントは、白い画面のままにせず理由と直し方を出す。
 
 ## セキュリティ
 
