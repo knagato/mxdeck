@@ -15,6 +15,7 @@ const {
   dialog,
   session,
   clipboard,
+  powerMonitor,
 } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -144,6 +145,33 @@ function layout() {
   }
 }
 
+// ウィンドウ全体が白いまま描かれなくなることがある（Windows で GPU プロセスが落ちて作り直されたとき、
+// スリープ・画面ロックから戻ったときなど）。ウィンドウを動かしても直らないので、ビューの大きさを一度変えて
+// 描き直させる。大きさが同じだと新しいフレームが作られない
+function repaint(reason) {
+  if (!win || win.isDestroyed()) return;
+  log(`repaint: ${reason}`);
+  const { width, height } = win.getContentBounds();
+  sidebar.setBounds({ x: 0, y: 0, width: SIDEBAR_WIDTH, height: Math.max(0, height - 1) });
+  for (const v of views.values()) {
+    v.setBounds({ x: SIDEBAR_WIDTH, y: 0, width: Math.max(0, width - SIDEBAR_WIDTH - 1), height });
+  }
+  setTimeout(() => {
+    if (win.isDestroyed()) return;
+    layout();
+    for (const wc of [sidebar.webContents, activeWebContents()]) if (wc && !wc.isDestroyed()) wc.invalidate();
+  }, 50);
+}
+
+// 白くなった原因を後から追えるよう、プロセスが落ちた・描き直したといった出来事を userData/mxdeck.log に残す
+function log(message) {
+  const file = path.join(app.getPath("userData"), "mxdeck.log");
+  try {
+    if (fs.statSync(file, { throwIfNoEntry: false })?.size > 1_000_000) fs.renameSync(file, `${file}.old`);
+    fs.appendFileSync(file, `${new Date().toISOString()} ${message}\n`);
+  } catch {}
+}
+
 function createAccountView(account) {
   const { id } = account;
   const view = new WebContentsView({
@@ -195,6 +223,12 @@ function createAccountView(account) {
   wc.on("page-favicon-updated", (_e, favicons) => setSignal(id, "favicon", parseFavicons(favicons)));
 
   wc.on("context-menu", (_e, params) => buildContextMenu(wc, params).popup({ window: win }));
+
+  // ページのプロセスが落ちると白いままになる。読み込み直す（メモリ不足で殺された等。正常終了は除く）
+  wc.on("render-process-gone", (_e, details) => {
+    log(`account ${id} renderer gone: ${details.reason} (${details.exitCode})`);
+    if (details.reason !== "clean-exit" && views.get(id)?.webContents === wc) reloadAccount(id);
+  });
 
   view.setVisible(false);
   win.contentView.addChildView(view);
@@ -612,6 +646,8 @@ function buildMenu() {
         { role: "togglefullscreen" },
         { type: "separator" },
         { label: "メモリ使用量…", click: showMemoryReport },
+        // ウィンドウが白いまま戻らないときの手動の逃げ道
+        { label: "画面を描き直す", click: () => repaint("menu") },
       ],
     },
     {
@@ -744,6 +780,16 @@ function createWindow() {
     for (const w of popups) w.close();
   });
   win.on("focus", () => activeWebContents()?.focus());
+  // サイドバーのプロセスが落ちたら読み込み直し、一覧・選択中・バッジ・色を送り直す
+  sidebar.webContents.on("render-process-gone", (_e, details) => {
+    log(`sidebar renderer gone: ${details.reason} (${details.exitCode})`);
+    if (details.reason === "clean-exit") return;
+    sidebar.webContents.once("did-finish-load", () => {
+      sendAccounts();
+      pushEdgeColor();
+    });
+    sidebar.webContents.reload();
+  });
   layout();
 }
 
@@ -800,6 +846,10 @@ app.setPath("userData", process.env.MXDECK_USER_DATA || path.join(app.getPath("a
 // Windows の通知（トースト）はアプリの ID で束ねられる。インストーラが作るショートカットの ID に合わせる
 if (process.platform === "win32" && app.isPackaged) app.setAppUserModelId("com.knatrix.mxdeck");
 
+// Windows では、ほかのウィンドウに覆われたと判定されたウィンドウの描画が止まり、前に出しても白いまま戻らない
+// ことがある（Chromium のウィンドウ遮蔽の計算。画面共有や全画面のウィンドウが重なったとき等）。使わない
+if (process.platform === "win32") app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
+
 // Google 等の IdP は UA に "Electron/" があると埋め込みブラウザ扱いでログインを拒むことがあるので外す
 app.userAgentFallback = app.userAgentFallback.replace(/ (Electron|mxdeck)\/\S+/g, "");
 
@@ -837,6 +887,14 @@ if (!app.requestSingleInstanceLock()) {
     });
     buildMenu();
     createWindow();
+    // GPU プロセスが落ちると作り直されるが、ビューが白いまま残ることがある。作り直しを待ってから描き直す
+    app.on("child-process-gone", (_e, details) => {
+      log(`${details.type} process gone: ${details.reason} (${details.exitCode})`);
+      if (details.type === "GPU") setTimeout(() => repaint("gpu process gone"), 1000);
+    });
+    // スリープ・画面ロックから戻ったときも白くなることがある
+    powerMonitor.on("resume", () => repaint("resume"));
+    powerMonitor.on("unlock-screen", () => repaint("unlock-screen"));
   });
   app.on("activate", () => {
     if (win) win.show();

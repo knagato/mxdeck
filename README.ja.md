@@ -78,6 +78,7 @@ Windows 用のインストーラ（x64・arm64）は `pnpm run dist:win` で `di
 - ⌘1〜⌘9 でアカウント切り替え、⌘R は表示中のアカウントだけ再読み込み、⌥⌘I で開発者ツール。
   Windows では ⌘ を Ctrl、⌥ を Alt に読み替える（Ctrl+1〜9、Ctrl+R、Ctrl+Alt+I）。
 - 「表示 → メモリ使用量…」でアカウントごとのメモリ（working set、iframe の別プロセスも合算）と Electron 本体側の内訳を出す。
+- ウィンドウが白いまま戻らないとき（Windows で GPU プロセスが作り直されたときや、ほかのウィンドウに覆われた後に起きる）は「表示 → 画面を描き直す」。落ちたプロセスと描き直しは保存先（`%APPDATA%\mxdeck` / `~/Library/Application Support/mxdeck`）の `mxdeck.log` に残る。
 
 ### アプリ上での管理
 

@@ -78,6 +78,7 @@ paths can still be written as `~/…` with `/`.
 - ⌘1–⌘9 switch accounts, ⌘R reloads only the visible account, ⌥⌘I opens developer tools.
   On Windows read ⌘ as Ctrl and ⌥ as Alt (Ctrl+1–9, Ctrl+R, Ctrl+Alt+I).
 - View → メモリ使用量… (Memory usage) shows memory per account (working set, including cross-origin iframe processes) and for Electron itself.
+- If the window stays white (seen on Windows after the GPU process restarts or the window was covered), View → 画面を描き直す (Repaint) draws it again. Crashed processes and repaints are logged to `mxdeck.log` in the data folder (`%APPDATA%\mxdeck` / `~/Library/Application Support/mxdeck`).
 
 ### Managing accounts in the app
 
