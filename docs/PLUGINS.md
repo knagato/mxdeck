@@ -66,7 +66,7 @@ See [`examples/hello-plugin`](../examples/hello-plugin) for a complete one.
 | `ctx.panel.open({ file, width?, height?, resizable? })` | Open an HTML file from the plugin as a sheet on the main window (or focus it if already open). Returns `{ window, send(channel, payload), close() }` |
 | `ctx.panel.handle(channel, fn)` | Answer `window.mxdeck.invoke(channel, ...args)` from the plugin's panels |
 | `ctx.sites.session(name)` | The Electron `session` for storage `persist:plugin-<id>-<name>`, separate from every account. Permission requests are denied |
-| `ctx.sites.open(name, url, { show? })` | A browser window on that storage, for signing in to a site. Reuses the open one. Links that open a new tab load in the same window; only sized popups (SSO) get their own. Returns `{ window, webContents, session, loaded(), currentPage(), close() }` |
+| `ctx.sites.open(name, url, { show? })` | A browser window on that storage, for signing in to a site. Reuses the open one. Links that open a new tab load in the same window; only sized popups (SSO) get their own. Passkeys (WebAuthn) are hidden from the page, since mxdeck cannot sign in with them and the passkey prompt a site like Slack opens on its own would only get in the way. Returns `{ window, webContents, session, loaded(), currentPage(), close() }` |
 | `ctx.sites.close(name)` | Close that site's window and its popups, and return how many were open. The sign-in stays in the storage |
 | `ctx.frames.inject({ origins, preload })` | Run `preload` in the frames of the account views (e.g. a widget iframe inside Element) |
 | `ctx.frames.handle(channel, fn)` | Answer `ipcRenderer.invoke("mxdeck:frame", "<id>", channel, payload)` from those frames. `fn(payload, { account, origin })` |

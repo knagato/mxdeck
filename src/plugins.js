@@ -257,7 +257,13 @@ function siteWindowOptions(ses, show) {
     width: 1100,
     height: 800,
     show,
-    webPreferences: { session: ses, contextIsolation: true, sandbox: true },
+    // preload-site.js はページからパスキーを隠す（mxdeck では使えず、出てくる画面がノイズになるだけなので）
+    webPreferences: {
+      session: ses,
+      contextIsolation: true,
+      sandbox: true,
+      preload: path.join(__dirname, "preload-site.js"),
+    },
   };
 }
 
