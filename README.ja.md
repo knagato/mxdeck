@@ -78,6 +78,8 @@ Windows 用のインストーラ（x64・arm64）は `pnpm run dist:win` で `di
 - ⌘1〜⌘9 でアカウント切り替え、⌘R は表示中のアカウントだけ再読み込み、⌥⌘I で開発者ツール。
   Windows では ⌘ を Ctrl、⌥ を Alt に読み替える（Ctrl+1〜9、Ctrl+R、Ctrl+Alt+I）。
 - 「表示 → メモリ使用量…」でアカウントごとのメモリ（working set、iframe の別プロセスも合算）と Electron 本体側の内訳を出す。
+- 新しい版は起動の少し後と6時間おきに確かめ、裏でダウンロードして再起動を勧める（断っても次に終了したときに入る）。
+  今の版の確認と手動の確認は「mxdeck → アップデートを確認…」（Windows は「ファイル → アップデートを確認…」）。
 - ウィンドウが白いまま戻らないとき（Windows で GPU プロセスが作り直されたときや、ほかのウィンドウに覆われた後に起きる）は「表示 → 画面を描き直す」。落ちたプロセスと描き直しは保存先（`%APPDATA%\mxdeck` / `~/Library/Application Support/mxdeck`）の `mxdeck.log` に残る。
 
 ### アプリ上での管理
@@ -143,7 +145,6 @@ Windows 用のインストーラ（x64・arm64）は `pnpm run dist:win` で `di
   ブラウザにしか同期パスキーを渡さない。Google の SSO では「別の方法を試す」からパスワード＋2段階認証で入る。
   UA からは `Electron/` を外してあるので、埋め込みブラウザとして弾かれることは避けている。
 - 未読はタイトル・favicon の形式に依存する。クライアントの版で形式が変わると拾えなくなる。
-- 自動更新は無い。
 - Windows 版はコード署名をしていない（SmartScreen の確認が出る）。ウィンドウは普通の枠とメニューバーのままで、
   サイドバーの色はページに合わせるがタイトルバーは OS の色になる。
 - プロセスを強制終了すると、次の起動で Element が「別のウィンドウで開いています」と出ることがある
@@ -164,25 +165,38 @@ MXDECK_USER_DATA=/tmp/mxdeck-test/ud MXDECK_ACCOUNTS=/tmp/mxdeck-test/accounts.j
 
 ### リリース
 
-署名・公証済みの dmg / zip（arm64・x64）を `dist/` に作る。
+署名・公証済みの macOS 版（dmg / zip、arm64・x64）と Windows 版のインストーラ（x64・arm64）を `dist/` に作り、
+添付するファイルを最後に並べる。
 
 ```bash
 # 初回だけ: 公証用の認証情報をキーチェーンに登録（アプリ用パスワードを聞かれる）
 xcrun notarytool store-credentials mxdeck-notary --apple-id <Apple ID> --team-id <Team ID>
 
 APPLE_KEYCHAIN_PROFILE=mxdeck-notary pnpm run release
-gh release create v<version> dist/*.dmg dist/*.zip --generate-notes
+# 最後に出る gh release create … をそのまま実行する（リリースノートのファイルを渡す）
 ```
 
 `scripts/release.sh` は、公証の認証情報と Developer ID 証明書があるかを先に確かめ、ビルド後に
 `codesign` / `spctl` / `stapler` で検証する（electron-builder は認証情報が無いと警告だけで公証を飛ばすため）。
 
-Windows 用のインストーラは `release.sh` の後に作って一緒に上げる（`release.sh` は最初に `dist/` を消すので順番に注意）:
+アプリ内の更新は、最新のリリースに添付した `latest-mac.yml` / `latest.yml` を読み、zip（macOS）・インストーラ
+（Windows）と、差分ダウンロード用の `.blockmap` を取ってくる。**これらを添付し忘れると、そのリリースへは
+更新されない**（下書き・プレリリースも対象外）。
+
+更新の動作確認は、版を変えて2つ作り、新しいほうを手元のサーバーから配って古いほうを起動する
+（macOS は署名が要るので Developer ID で。公証は要らない）:
 
 ```bash
-pnpm run dist:win
-gh release create v<version> dist/*.dmg dist/*.zip dist/*-x64-win-setup.exe dist/*-arm64-win-setup.exe --generate-notes
+for v in 0.0.90 0.0.91; do
+  pnpm exec electron-builder --mac zip --arm64 --publish never -c.mac.notarize=false \
+    -c.extraMetadata.version=$v -c.directories.output=/tmp/mxu/$v
+done
+(cd /tmp/mxu/0.0.91 && python3 -m http.server 18085 --bind 127.0.0.1) &
+MXDECK_USER_DATA=/tmp/mxu/ud MXDECK_UPDATE_URL=http://127.0.0.1:18085/ \
+  /tmp/mxu/0.0.90/mac-arm64/mxdeck.app/Contents/MacOS/mxdeck
 ```
+
+起動の30秒後に確かめ、ダウンロードが済むと再起動を勧める。経過は `/tmp/mxu/ud/mxdeck.log` に出る。
 
 ## ライセンス
 

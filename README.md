@@ -78,6 +78,8 @@ paths can still be written as `~/…` with `/`.
 - ⌘1–⌘9 switch accounts, ⌘R reloads only the visible account, ⌥⌘I opens developer tools.
   On Windows read ⌘ as Ctrl and ⌥ as Alt (Ctrl+1–9, Ctrl+R, Ctrl+Alt+I).
 - View → メモリ使用量… (Memory usage) shows memory per account (working set, including cross-origin iframe processes) and for Electron itself.
+- New versions are checked shortly after launch and every 6 hours, downloaded in the background, and offered with a restart (if declined, they are installed on the next quit).
+  To see the current version or check now: mxdeck → アップデートを確認… (Check for updates; on Windows under ファイル / File).
 - If the window stays white (seen on Windows after the GPU process restarts or the window was covered), View → 画面を描き直す (Repaint) draws it again. Crashed processes and repaints are logged to `mxdeck.log` in the data folder (`%APPDATA%\mxdeck` / `~/Library/Application Support/mxdeck`).
 
 ### Managing accounts in the app
@@ -144,7 +146,6 @@ Plugins run with mxdeck's own rights, so only add ones you trust. To write your 
   For Google SSO, choose "Try another way" and use a password plus 2-step verification.
   `Electron/` is removed from the user agent so identity providers don't reject the login as an embedded browser.
 - Unread badges depend on the title / favicon format and break if a client changes it.
-- No auto-update.
 - The Windows build is not code-signed (SmartScreen asks first). Its window keeps the normal frame and menu bar;
   the sidebar follows the page's color, but the title bar follows the OS.
 - After a force quit, Element may say it "is open in another window" on the next start (Element Web's session lock
@@ -165,26 +166,40 @@ With `--remote-debugging-port`, the sidebar and the editor sheet can be driven o
 
 ### Releasing
 
-Builds signed and notarized dmg / zip files (arm64 and x64) into `dist/`.
+Builds signed and notarized macOS files (dmg / zip, arm64 and x64) and the Windows installers (x64 and arm64) into
+`dist/`, then lists the files to attach.
 
 ```bash
 # once: store notarization credentials in the keychain (asks for an app-specific password)
 xcrun notarytool store-credentials mxdeck-notary --apple-id <Apple ID> --team-id <Team ID>
 
 APPLE_KEYCHAIN_PROFILE=mxdeck-notary pnpm run release
-gh release create v<version> dist/*.dmg dist/*.zip --generate-notes
+# then run the gh release create … line it prints, with a notes file
 ```
 
 `scripts/release.sh` checks for the notarization credentials and a Developer ID certificate first, and verifies
 the result with `codesign`, `spctl` and `stapler` afterwards — electron-builder only warns and skips notarization
 when credentials are missing.
 
-Build the Windows installers after `release.sh` (it starts by deleting `dist/`) and upload them together:
+In-app updates read `latest-mac.yml` / `latest.yml` from the latest release and fetch the zip (macOS) or the
+installer (Windows), plus the `.blockmap` files for differential downloads. **A release without these files is
+not offered as an update** (nor are drafts and pre-releases).
+
+To try an update locally, build two versions and serve the newer one to the older one (macOS needs a Developer ID
+signature for this, not notarization):
 
 ```bash
-pnpm run dist:win
-gh release create v<version> dist/*.dmg dist/*.zip dist/*-x64-win-setup.exe dist/*-arm64-win-setup.exe --generate-notes
+for v in 0.0.90 0.0.91; do
+  pnpm exec electron-builder --mac zip --arm64 --publish never -c.mac.notarize=false \
+    -c.extraMetadata.version=$v -c.directories.output=/tmp/mxu/$v
+done
+(cd /tmp/mxu/0.0.91 && python3 -m http.server 18085 --bind 127.0.0.1) &
+MXDECK_USER_DATA=/tmp/mxu/ud MXDECK_UPDATE_URL=http://127.0.0.1:18085/ \
+  /tmp/mxu/0.0.90/mac-arm64/mxdeck.app/Contents/MacOS/mxdeck
 ```
+
+It checks 30 seconds after launch and offers to restart once the download is done; progress goes to
+`/tmp/mxu/ud/mxdeck.log`.
 
 ## License
 

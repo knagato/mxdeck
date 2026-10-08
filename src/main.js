@@ -22,6 +22,7 @@ const path = require("node:path");
 const store = require("./accounts");
 const plugins = require("./plugins");
 const siteIcon = require("./site-icon");
+const updater = require("./updater");
 
 const SIDEBAR_WIDTH = 84;
 const isMac = process.platform === "darwin";
@@ -621,8 +622,24 @@ function buildMenu() {
     click: () => activate(a.id),
   }));
   const template = [
-    // Windows にはアプリ名のメニューが無いので、終了はファイルメニューに置く
-    isMac ? { role: "appMenu" } : { label: "ファイル", submenu: [{ role: "quit", label: "終了" }] },
+    // Windows にはアプリ名のメニューが無いので、アップデートの確認と終了はファイルメニューに置く
+    isMac
+      ? {
+          label: app.name,
+          submenu: [
+            { role: "about" },
+            updater.menuItem(),
+            { type: "separator" },
+            { role: "services" },
+            { type: "separator" },
+            { role: "hide" },
+            { role: "hideOthers" },
+            { role: "unhide" },
+            { type: "separator" },
+            { role: "quit" },
+          ],
+        }
+      : { label: "ファイル", submenu: [updater.menuItem(), { type: "separator" }, { role: "quit", label: "終了" }] },
     { role: "editMenu" },
     {
       label: "表示",
@@ -887,6 +904,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     buildMenu();
     createWindow();
+    updater.init({ win: () => win, log, rebuildMenu: buildMenu });
     // GPU プロセスが落ちると作り直されるが、ビューが白いまま残ることがある。作り直しを待ってから描き直す
     app.on("child-process-gone", (_e, details) => {
       log(`${details.type} process gone: ${details.reason} (${details.exitCode})`);

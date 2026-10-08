@@ -1,5 +1,6 @@
 #!/bin/bash
-# 署名・公証済みの dmg / zip を dist/ に作る。
+# 署名・公証済みの macOS 版（dmg / zip）と Windows 版のインストーラを dist/ に作り、
+# リリースに添付するファイルを最後に並べる。
 #
 #   APPLE_KEYCHAIN_PROFILE=mxdeck-notary ./scripts/release.sh
 #
@@ -43,4 +44,17 @@ for dmg in dist/*.dmg; do
   xcrun stapler validate "$dmg"
   spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
 done
-ls -lh dist/*.dmg dist/*.zip
+
+pnpm exec electron-builder --win nsis --x64 --arm64 --publish never
+
+# リリースに添付するもの。latest-mac.yml / latest.yml と blockmap はアプリ内の更新（src/updater.js）が読む。
+# macOS の更新に使うのは zip。Windows は x64 と arm64 を別々に入れ、両方入りのインストーラは添付しない
+# （latest.yml にも載るが、更新ではアーキテクチャ名を含むほうが選ばれる）
+assets=(
+  dist/*.dmg dist/*-mac.zip dist/*-mac.zip.blockmap dist/latest-mac.yml
+  dist/*-x64-win-setup.exe dist/*-arm64-win-setup.exe dist/*-x64-win-setup.exe.blockmap dist/*-arm64-win-setup.exe.blockmap
+  dist/latest.yml
+)
+ls -lh "${assets[@]}"
+echo
+echo "gh release create v$(node -p 'require("./package.json").version') ${assets[*]} --notes-file <notes>"
