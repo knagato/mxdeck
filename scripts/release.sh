@@ -2,12 +2,12 @@
 # 署名・公証済みの macOS 版（dmg / zip）と Windows 版のインストーラを dist/ に作り、
 # リリースに添付するファイルを最後に並べる。
 #
-#   APPLE_KEYCHAIN_PROFILE=mxdeck-notary ./scripts/release.sh
+#   APPLE_KEYCHAIN_PROFILE=developer-id-notary ./scripts/release.sh
 #
 # 前提:
 #   - キーチェーンに "Developer ID Application" 証明書がある（electron-builder が自動で選ぶ）
 #   - 公証用の認証情報をキーチェーンに登録済み（初回だけ）:
-#       xcrun notarytool store-credentials mxdeck-notary --apple-id <Apple ID> --team-id <Team ID>
+#       xcrun notarytool store-credentials developer-id-notary --apple-id <Apple ID> --team-id <Team ID>
 #     （アプリ用パスワードを聞かれる。https://account.apple.com で発行する）
 #
 # electron-builder は認証情報が無いと警告だけ出して公証を飛ばすので、前後でここが止める。
@@ -17,7 +17,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ -z "${APPLE_KEYCHAIN_PROFILE:-}" ]; then
-  echo "APPLE_KEYCHAIN_PROFILE が未設定。公証用のキーチェーンプロファイル名を渡す（例: mxdeck-notary）" >&2
+  echo "APPLE_KEYCHAIN_PROFILE が未設定。公証用のキーチェーンプロファイル名を渡す（例: developer-id-notary）" >&2
   exit 1
 fi
 xcrun notarytool history --keychain-profile "$APPLE_KEYCHAIN_PROFILE" >/dev/null ||

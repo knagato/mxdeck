@@ -170,9 +170,9 @@ MXDECK_USER_DATA=/tmp/mxdeck-test/ud MXDECK_ACCOUNTS=/tmp/mxdeck-test/accounts.j
 
 ```bash
 # 初回だけ: 公証用の認証情報をキーチェーンに登録（アプリ用パスワードを聞かれる）
-xcrun notarytool store-credentials mxdeck-notary --apple-id <Apple ID> --team-id <Team ID>
+xcrun notarytool store-credentials developer-id-notary --apple-id <Apple ID> --team-id <Team ID>
 
-APPLE_KEYCHAIN_PROFILE=mxdeck-notary pnpm run release
+APPLE_KEYCHAIN_PROFILE=developer-id-notary pnpm run release
 # 最後に出る gh release create … をそのまま実行する（リリースノートのファイルを渡す）
 ```
 

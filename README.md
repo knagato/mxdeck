@@ -171,9 +171,9 @@ Builds signed and notarized macOS files (dmg / zip, arm64 and x64) and the Windo
 
 ```bash
 # once: store notarization credentials in the keychain (asks for an app-specific password)
-xcrun notarytool store-credentials mxdeck-notary --apple-id <Apple ID> --team-id <Team ID>
+xcrun notarytool store-credentials developer-id-notary --apple-id <Apple ID> --team-id <Team ID>
 
-APPLE_KEYCHAIN_PROFILE=mxdeck-notary pnpm run release
+APPLE_KEYCHAIN_PROFILE=developer-id-notary pnpm run release
 # then run the gh release create … line it prints, with a notes file
 ```
 
