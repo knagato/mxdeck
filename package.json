@@ -1,7 +1,7 @@
 {
   "name": "mxdeck",
   "productName": "mxdeck",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "description": "A desktop shell for macOS and Windows that keeps several Matrix accounts (Element Web, Cinny, …) side by side in one window",
   "keywords": [
@@ -31,7 +31,7 @@
     "release": "./scripts/release.sh"
   },
   "devDependencies": {
-    "electron": "^44.4.5",
+    "electron": "^44.10.2",
     "electron-builder": "^26.15.3"
   },
   "build": {
